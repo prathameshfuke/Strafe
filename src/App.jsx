@@ -17,15 +17,18 @@ import {
   Moon
 } from 'lucide-react';
 
-// Pages imports
-import Dashboard from './pages/Dashboard';
-import Library from './pages/Library';
-import GameDetail from './pages/GameDetail';
-import Stats from './pages/Stats';
-import Profile from './pages/Profile';
-import Settings from './pages/Settings';
-import FloatingWidget from './components/FloatingWidget';
-import Login from './pages/Login';
+import { useSessionStore } from './stores/sessionStore';
+import { SessionTimer } from './components/SessionTimer';
+
+// Lazy load page views for memory optimization
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Library = React.lazy(() => import('./pages/Library'));
+const GameDetail = React.lazy(() => import('./pages/GameDetail'));
+const Stats = React.lazy(() => import('./pages/Stats'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const FloatingWidget = React.lazy(() => import('./components/FloatingWidget'));
+const Login = React.lazy(() => import('./pages/Login'));
 import logoImg from '../logo.png';
 import iconImg from '../icon.png';
 
@@ -83,9 +86,10 @@ const Titlebar = () => {
           VaultTrack
         </span>
         {activeGame && (
-          <span className="vt-badge vt-badge-ingame ml-3 text-[11px]">
+          <span className="vt-badge vt-badge-ingame ml-3 text-[11px] flex items-center gap-1.5 py-0.5">
             <span className="w-1.5 h-1.5 rounded-full vt-pulse-dot" style={{ background: 'var(--accent)' }} />
             Playing: {activeGame.name}
+            <SessionTimer />
           </span>
         )}
       </div>
@@ -342,31 +346,36 @@ const AppRoutes = () => {
     initStore();
   }, [initStore]);
 
+  const initSessionListeners = useSessionStore(state => state.initListeners);
+  const { activeSession, elapsed } = useSessionStore();
+  const setActiveGameId = useGameStore(state => state.setActiveGameId);
+  const setActiveSessionTime = useGameStore(state => state.setActiveSessionTime);
+
+  useEffect(() => {
+    const cleanup = initSessionListeners();
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [initSessionListeners]);
+
+  useEffect(() => {
+    if (activeSession) {
+      setActiveGameId(activeSession.gameId);
+      setActiveSessionTime(elapsed);
+    } else {
+      setActiveGameId(null);
+      setActiveSessionTime(0);
+    }
+  }, [activeSession, elapsed, setActiveGameId, setActiveSessionTime]);
+
   useEffect(() => {
     if (hasElectron) {
-      const unsubscribeStatus = window.electron.process.onGameStatusChange((data) => {
-        if (data.status === 'running') {
-          useGameStore.getState().setActiveGameId(data.gameId);
-        } else {
-          useGameStore.getState().setActiveGameId(null);
-          useGameStore.getState().setActiveSessionTime(0);
-          useGameStore.getState().initStore();
-        }
+      const unsub = window.strafe.onSessionEnded(() => {
+        initStore();
       });
-
-      const unsubscribeTick = window.electron.process.onActiveSessionTick((data) => {
-        useGameStore.getState().setActiveSessionTime(data.elapsedSeconds);
-        if (useGameStore.getState().activeGameId !== data.gameId) {
-          useGameStore.getState().setActiveGameId(data.gameId);
-        }
-      });
-
-      return () => {
-        unsubscribeStatus();
-        unsubscribeTick();
-      };
+      return unsub;
     }
-  }, []);
+  }, [initStore]);
 
   const isFloating = location.pathname.startsWith('/floating');
 
@@ -417,10 +426,19 @@ const AppRoutes = () => {
   );
 };
 
+const PageSkeleton = () => (
+  <div style={{ 
+    width: '100%', height: '100vh', 
+    background: 'var(--bg-base)' 
+  }} />
+);
+
 export default function App() {
   return (
     <HashRouter>
-      <AppRoutes />
+      <React.Suspense fallback={<PageSkeleton />}>
+        <AppRoutes />
+      </React.Suspense>
     </HashRouter>
   );
 }

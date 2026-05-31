@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGameStore } from '../stores/useGameStore';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import GameImage from '../components/GameImage';
 import { 
   Search, 
   Grid, 
@@ -153,6 +155,25 @@ export default function Library() {
     return result;
   }, [games, searchQuery, selectedGenre, selectedStatus, selectedCollection, collectionGames, sortBy, gamePlaytimes, gameLastPlayed]);
 
+  const parentRef = useRef(null);
+  const CARD_HEIGHT = 280;
+  const COLUMNS = 5;
+
+  const rows = useMemo(() => {
+    const r = [];
+    for (let i = 0; i < filteredGames.length; i += COLUMNS) {
+      r.push(filteredGames.slice(i, i + COLUMNS));
+    }
+    return r;
+  }, [filteredGames]);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => CARD_HEIGHT + 16,
+    overscan: 2,
+  });
+
   // --- Wizard Functions ---
   const handleSelectExe = async () => {
     if (typeof window !== 'undefined' && window.electron) {
@@ -255,9 +276,40 @@ export default function Library() {
 
   const handleSelectMetadata = (meta) => { setSelectedMetadata(meta); populateMetadataDetails(meta); };
 
-  const handleSaveGame = () => {
-    addGame({ name: gameName, exe_path: exePath, cover_art: manualCoverArt, genre: manualGenre, developer: manualDeveloper, description: manualDescription, rawg_id: selectedMetadata ? selectedMetadata.id : null });
-    setShowWizard(false); setWizardStep(1); setExePath(''); setGameName(''); setMetadataList([]); setSelectedMetadata(null); setManualCoverArt(''); setManualGenre('');
+  const handleSaveGame = async () => {
+    let coverArt = manualCoverArt;
+    let genre = manualGenre;
+    let developer = manualDeveloper;
+    let description = manualDescription;
+    let rawgId = selectedMetadata ? selectedMetadata.id : null;
+
+    if (!coverArt && gameName) {
+      const rawgKey = settings.rawg_api_key || 'c537d92ffbf04a3e9d8cb404e8d35f79';
+      try {
+        const results = await searchGameWithFallbacks(gameName, rawgKey);
+        if (results && results.length > 0) {
+          const meta = results[0];
+          coverArt = meta.background_image || '';
+          rawgId = meta.id;
+          if (!genre) genre = meta.genres ? meta.genres.map(g => g.name).join(', ') : 'Action';
+          if (!description) description = `${meta.name} fetched from catalog database.`;
+        }
+      } catch (e) {
+        console.warn("Background fetch during save failed:", e);
+      }
+    }
+
+    addGame({ name: gameName, exe_path: exePath, cover_art: coverArt, genre: genre || 'Action', developer: developer || 'Unknown', description: description || '', rawg_id: rawgId });
+    setShowWizard(false); 
+    setWizardStep(1); 
+    setExePath(''); 
+    setGameName(''); 
+    setMetadataList([]); 
+    setSelectedMetadata(null); 
+    setManualCoverArt(''); 
+    setManualGenre('');
+    setManualDeveloper('');
+    setManualDescription('');
   };
 
   // --- Drag & Drop ---
@@ -373,44 +425,66 @@ export default function Library() {
           <p className="text-[13px] mt-1" style={{ color: 'var(--text-secondary)' }}>Try adjusting your filters or add a new game.</p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {filteredGames.map(game => {
-            const isCurrentlyPlaying = activeGameId === game.id;
-            const hours = ((gamePlaytimes[game.id] || 0) / 3600).toFixed(1);
-            const isSelected = selectedGameIds.includes(game.id);
-            return (
-              <div key={game.id}
-                onClick={() => { if (batchMode) handleToggleSelectGame(game.id); else navigate(`/game/${game.id}`); }}
-                className={`vt-card overflow-hidden cursor-pointer ${!batchMode ? 'vt-card-hover' : ''}`}
-                style={isSelected ? { borderColor: 'var(--accent-secondary)', background: 'var(--accent-secondary-soft)' } : {}}
-              >
-                <div className="relative aspect-[3/4] overflow-hidden" style={{ borderRadius: '10px 10px 0 0' }}>
-                  <img src={game.cover_art} alt={game.name} className="w-full h-full object-cover" />
-                  <div className="vt-cover-shadow absolute inset-0" />
-                  {batchMode && (
-                    <div className="absolute top-2 left-2 z-20">
-                      <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: isSelected ? 'var(--accent-secondary)' : 'rgba(0,0,0,0.4)', border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.3)' }}>
-                        {isSelected && <Check className="w-3.5 h-3.5" style={{ color: '#fefefe' }} />}
+        <div ref={parentRef} className="custom-scrollbar" style={{ height: 'calc(100vh - 220px)', overflow: 'auto' }}>
+          <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+            {virtualizer.getVirtualItems().map(virtualRow => {
+              const rowItems = rows[virtualRow.index];
+              if (!rowItems) return null;
+              return (
+                <div
+                  key={virtualRow.index}
+                  style={{
+                    position: 'absolute',
+                    top: virtualRow.start,
+                    left: 0,
+                    width: '100%',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gap: 16,
+                    paddingBottom: 16,
+                  }}
+                >
+                  {rowItems.map(game => {
+                    const isCurrentlyPlaying = activeGameId === game.id;
+                    const hours = ((gamePlaytimes[game.id] || 0) / 3600).toFixed(1);
+                    const isSelected = selectedGameIds.includes(game.id);
+                    return (
+                      <div key={game.id}
+                        onClick={() => { if (batchMode) handleToggleSelectGame(game.id); else navigate(`/game/${game.id}`); }}
+                        className={`vt-card overflow-hidden cursor-pointer ${!batchMode ? 'vt-card-hover' : ''}`}
+                        style={isSelected ? { borderColor: 'var(--accent-secondary)', background: 'var(--accent-secondary-soft)' } : {}}
+                      >
+                        <div className="relative aspect-[3/4] overflow-hidden" style={{ borderRadius: '10px 10px 0 0' }}>
+                          <GameImage src={game.cover_art} alt={game.name} className="w-full h-full object-cover" />
+                          <div className="vt-cover-shadow absolute inset-0" />
+                          {batchMode && (
+                            <div className="absolute top-2 left-2 z-20">
+                              <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: isSelected ? 'var(--accent-secondary)' : 'rgba(0,0,0,0.4)', border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.3)' }}>
+                                {isSelected && <Check className="w-3.5 h-3.5" style={{ color: '#fefefe' }} />}
+                              </div>
+                            </div>
+                          )}
+                          {/* Status pill */}
+                          <div className="absolute bottom-2 right-2">
+                            <span className={getStatusBadge(game.status)} style={{ fontSize: '11px' }}>{game.status}</span>
+                          </div>
+                        </div>
+                        <div className="p-3">
+                          <div className="flex items-center justify-between gap-1">
+                            <h3 className="text-[15px] truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{game.name}</h3>
+                            <button onClick={(e) => { e.stopPropagation(); toggleFavorite(game.id); }} className="shrink-0 cursor-pointer" style={{ color: game.is_favorite ? 'var(--accent)' : 'var(--text-tertiary)' }} title={game.is_favorite ? 'Remove favorite' : 'Add to favorites'}>
+                              <Heart className={`w-4 h-4 ${game.is_favorite ? 'fill-current' : ''}`} />
+                            </button>
+                          </div>
+                          <p className="vt-mono text-[13px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{hours} hrs</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {/* Status pill */}
-                  <div className="absolute bottom-2 right-2">
-                    <span className={getStatusBadge(game.status)} style={{ fontSize: '11px' }}>{game.status}</span>
-                  </div>
+                    );
+                  })}
                 </div>
-                <div className="p-3">
-                  <div className="flex items-center justify-between gap-1">
-                    <h3 className="text-[15px] truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{game.name}</h3>
-                    <button onClick={(e) => { e.stopPropagation(); toggleFavorite(game.id); }} className="shrink-0 cursor-pointer" style={{ color: game.is_favorite ? 'var(--accent)' : 'var(--text-tertiary)' }} title={game.is_favorite ? 'Remove favorite' : 'Add to favorites'}>
-                      <Heart className={`w-4 h-4 ${game.is_favorite ? 'fill-current' : ''}`} />
-                    </button>
-                  </div>
-                  <p className="vt-mono text-[13px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{hours} hrs</p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ) : (
         /* LIST VIEW */
@@ -441,7 +515,7 @@ export default function Library() {
                       {isSelected && <Check className="w-3 h-3" style={{ color: '#fefefe' }} />}
                     </div>
                   )}
-                  <img src={game.cover_art} alt={game.name} className="w-7 h-9 object-cover rounded shrink-0" style={{ border: '1px solid var(--border)' }} />
+                  <GameImage src={game.cover_art} alt={game.name} className="w-7 h-9 object-cover rounded shrink-0" style={{ border: '1px solid var(--border)' }} />
                   <div className="min-w-0">
                     <h3 className="text-[13px] truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{game.name}</h3>
                     <p className="vt-mono text-[11px] truncate" style={{ color: 'var(--text-tertiary)' }}>{game.exe_path}</p>
@@ -598,7 +672,30 @@ export default function Library() {
                     <div className="flex-1 flex flex-col gap-2">
                       <div>
                         <label className="vt-section-header text-[11px] block mb-1">Title</label>
-                        <input type="text" value={gameName} onChange={(e) => setGameName(e.target.value)} className="vt-input" />
+                        <div className="flex gap-2">
+                          <input type="text" value={gameName} onChange={(e) => setGameName(e.target.value)} className="vt-input flex-1" />
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              if (!gameName) return;
+                              const rawgKey = settings.rawg_api_key || 'c537d92ffbf04a3e9d8cb404e8d35f79';
+                              try {
+                                const results = await searchGameWithFallbacks(gameName, rawgKey);
+                                if (results && results.length > 0) {
+                                  const meta = results[0];
+                                  setManualCoverArt(meta.background_image || '');
+                                  if (!manualGenre) setManualGenre(meta.genres ? meta.genres.map(g => g.name).join(', ') : 'Action');
+                                  if (!manualDescription) setManualDescription(`${meta.name} fetched from catalog database.`);
+                                }
+                              } catch (e) {
+                                console.warn(e);
+                              }
+                            }} 
+                            className="vt-btn-secondary px-3 text-[12px] cursor-pointer"
+                          >
+                            Fetch Details
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="vt-section-header text-[11px] block mb-1">Genre</label>

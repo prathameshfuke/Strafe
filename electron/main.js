@@ -2,9 +2,17 @@ const { app, BrowserWindow, ipcMain, dialog, Notification, Tray, Menu, protocol,
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
-const processMonitor = require('./processMonitor');
 const https = require('https');
 const http = require('http');
+
+// Optimize memory parameters
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+
+const ProcessMonitor = require('./processMonitor');
+const SessionManager = require('./sessionManager');
+const { fetchNews } = require('./newsService');
 
 // Register custom protocol for local cover art loading
 protocol.registerSchemesAsPrivileged([
@@ -19,6 +27,39 @@ let isDbFallback = false;
 let fallbackDbPath = '';
 let fallbackData = {};
 let achievementInterval = null;
+let sessionManager = null;
+const processMonitor = new ProcessMonitor();
+
+const dbHelper = {
+  prepare: (sql) => {
+    return {
+      run: (...params) => {
+        const args = (params.length === 1 && Array.isArray(params[0])) ? params[0] : params;
+        if (isDbFallback) {
+          return executeFallbackRun(sql, args);
+        } else {
+          return db.prepare(sql).run(args);
+        }
+      },
+      all: (...params) => {
+        const args = (params.length === 1 && Array.isArray(params[0])) ? params[0] : params;
+        if (isDbFallback) {
+          return executeFallbackQuery(sql, args);
+        } else {
+          return db.prepare(sql).all(args);
+        }
+      },
+      get: (...params) => {
+        const args = (params.length === 1 && Array.isArray(params[0])) ? params[0] : params;
+        if (isDbFallback) {
+          return executeFallbackQuery(sql, args)[0] || null;
+        } else {
+          return db.prepare(sql).get(args);
+        }
+      }
+    };
+  }
+};
 
 // --- 1. Database Initialization ---
 function initDatabase() {
@@ -168,6 +209,12 @@ function runMigrations() {
   try {
     db.exec("ALTER TABLE games ADD COLUMN release_year INTEGER");
   } catch (e) {}
+  try {
+    db.exec("ALTER TABLE games ADD COLUMN total_seconds INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE games ADD COLUMN last_played TEXT");
+  } catch (e) {}
 
   // Achievements migrations
   try {
@@ -227,6 +274,10 @@ function initFallbackDb() {
   if (fallbackData.profile.favorite_genre === undefined) fallbackData.profile.favorite_genre = '';
   if (fallbackData.profile.is_onboarded === undefined) fallbackData.profile.is_onboarded = 0;
   fallbackData.settings = fallbackData.settings || {};
+  fallbackData.games.forEach(g => {
+    if (g.total_seconds === undefined) g.total_seconds = 0;
+    if (g.last_played === undefined) g.last_played = null;
+  });
 
   saveFallbackDb();
 }
@@ -351,13 +402,17 @@ function executeFallbackRun(sql, params = []) {
     const id = params[params.length - 1];
     const game = fallbackData.games.find(g => g.id === id);
     if (game) {
-      if (query.includes('status =')) {
+      if (query.includes('status =') && query.includes('rating =')) {
         // e.g. UPDATE games SET status = ?, rating = ?, is_favorite = ? WHERE id = ?
         game.status = params[0];
         game.rating = params[1];
         game.is_favorite = params[2];
       } else if (query.includes('is_favorite =')) {
         game.is_favorite = params[0];
+      } else if (query.includes('total_seconds =')) {
+        // e.g. UPDATE games SET total_seconds = COALESCE(total_seconds, 0) + ?, last_played = ? WHERE id = ?
+        game.total_seconds = (game.total_seconds || 0) + params[0];
+        game.last_played = params[1];
       }
       saveFallbackDb();
       return { changes: 1 };
@@ -480,10 +535,13 @@ function createMainWindow() {
     icon: path.join(__dirname, '../icon.png'),
     backgroundColor: '#161412', // Match warm/dark sidebar theme to prevent white flash
     show: false,
+    skipTaskbar: false,        // CRITICAL: always show in taskbar
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false, // prevents timer slowdown
+      v8CacheOptions: 'bypassHeatCheck' // faster startup, less recompile
     }
   });
 
@@ -498,6 +556,27 @@ function createMainWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  // Intercept close → minimize instead of exit (unless app.isQuitting)
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.minimize(); // minimize NOT hide — stays in taskbar
+      return false;
+    }
+  });
+
+  mainWindow.on('minimize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:minimized');
+    }
+  });
+
+  mainWindow.on('restore', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:restored');
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -590,9 +669,23 @@ function createTray() {
   tray.setToolTip('VaultTrack Game Library Tracker');
   tray.setContextMenu(contextMenu);
 
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
   tray.on('double-click', () => {
     if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
       mainWindow.show();
+      mainWindow.focus();
     }
   });
 }
@@ -617,6 +710,10 @@ function updateTrayStatus(gameName = null) {
 }
 
 // --- 5. Application Lifecycle & Security ---
+app.on('before-quit', () => {
+  app.isQuitting = true;
+});
+
 app.whenReady().then(() => {
   // Register file protocol to allow loading local cached cover art
   protocol.registerFileProtocol('media', (request, callback) => {
@@ -629,8 +726,27 @@ app.whenReady().then(() => {
   });
 
   initDatabase();
+  
+  // Initialize SessionManager and start monitoring
+  sessionManager = new SessionManager(dbHelper, () => mainWindow);
+  processMonitor.startMonitoring();
+
   createMainWindow();
   createTray();
+
+  // On startup: check if any library game is already running
+  try {
+    const games = isDbFallback
+      ? executeFallbackQuery("SELECT * FROM games")
+      : db.prepare("SELECT * FROM games").all();
+    processMonitor.scanForLibraryGames(games, (game) => {
+      console.log(`[STRAFE] Game already running on startup: ${game.name}`);
+      sessionManager.startSession(game.id, game.exe_path, game.name);
+      processMonitor.watch(game.exe_path, game.id, handleGameExit);
+    });
+  } catch (err) {
+    console.error("Failed to run startup game scan:", err);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -639,9 +755,11 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on('window-all-closed', (event) => {
+  if (process.platform !== 'darwin' && app.isQuitting) {
     app.quit();
+  } else {
+    event.preventDefault();
   }
 });
 
@@ -697,28 +815,23 @@ ipcMain.handle('game:launch', async (event, gameId, exePath) => {
 
     // Update DB status to 'Playing'
     const updateSql = "UPDATE games SET status = 'Playing' WHERE id = ?";
-    if (isDbFallback) {
-      executeFallbackRun(updateSql, ['Playing', gameId]);
-    } else {
-      db.prepare(updateSql).run('Playing', gameId);
-    }
+    dbHelper.prepare(updateSql).run('Playing', gameId);
 
     // Update Profile status_type to 'In-Game' and status_text
     const getGameSql = "SELECT name, cover_art FROM games WHERE id = ?";
-    const game = isDbFallback ? executeFallbackQuery(getGameSql, [gameId]) : db.prepare(getGameSql).get(gameId);
+    const game = dbHelper.prepare(getGameSql).get(gameId);
     const gameName = game ? game.name : 'a game';
     const coverArt = game ? game.cover_art : '';
     
     const updateProfileSql = "UPDATE profile SET status_type = 'In-Game', status_text = ? WHERE id = 'user_profile'";
-    if (isDbFallback) {
-      executeFallbackRun(updateProfileSql, [`Playing ${gameName}`]);
-    } else {
-      db.prepare(updateProfileSql).run(`Playing ${gameName}`);
-    }
+    dbHelper.prepare(updateProfileSql).run(`Playing ${gameName}`);
 
-    // Hide main window and open floating widget overlay
+    sessionManager.startSession(gameId, exePath, gameName);
+    processMonitor.watch(exePath, gameId, handleGameExit);
+
+    // Minimize window instead of hiding it
     if (mainWindow) {
-      mainWindow.hide();
+      mainWindow.minimize();
     }
     createFloatingWindow(gameId, gameName, coverArt);
     updateTrayStatus(gameName);
@@ -726,71 +839,6 @@ ipcMain.handle('game:launch', async (event, gameId, exePath) => {
     // Notify renderer of game status change
     const statusData = { gameId, status: 'running', gameName };
     if (mainWindow) mainWindow.webContents.send('game:status-change', statusData);
-
-    // Start process watcher
-    processMonitor.startMonitoring(
-      gameId,
-      exePath,
-      (elapsedSeconds) => {
-        // Tick callback (every 1 second)
-        if (floatingWindow && !floatingWindow.isDestroyed()) {
-          floatingWindow.webContents.send('game:session-tick', { gameId, elapsedSeconds });
-        }
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('game:session-tick', { gameId, elapsedSeconds });
-        }
-      },
-      async ({ gameId, startTime, endTime, durationSeconds }) => {
-        // Exit callback (game closed)
-        console.log(`Game ${gameId} exited. Playtime was ${durationSeconds} seconds.`);
-
-        // Insert session record
-        const insertSessionSql = "INSERT INTO sessions (game_id, start_time, end_time, duration_seconds, notes) VALUES (?, ?, ?, ?, ?)";
-        if (isDbFallback) {
-          executeFallbackRun(insertSessionSql, [gameId, startTime, endTime, durationSeconds, 'Auto-tracked session.']);
-        } else {
-          db.prepare(insertSessionSql).run(gameId, startTime, endTime, durationSeconds, 'Auto-tracked session.');
-        }
-
-        // Revert game status to 'Installed' or 'Playing' -> 'Installed'
-        const revertGameSql = "UPDATE games SET status = 'Installed' WHERE id = ?";
-        if (isDbFallback) {
-          executeFallbackRun(revertGameSql, [gameId]);
-        } else {
-          db.prepare(revertGameSql).run(gameId);
-        }
-
-        // Revert Profile status
-        const revertProfileSql = "UPDATE profile SET status_type = 'Online', status_text = 'Online' WHERE id = 'user_profile'";
-        if (isDbFallback) {
-          executeFallbackRun(revertProfileSql, []);
-        } else {
-          db.prepare(revertProfileSql).run();
-        }
-
-        // Close overlay and restore main dashboard
-        if (floatingWindow) {
-          floatingWindow.close();
-          floatingWindow = null;
-        }
-        if (mainWindow) {
-          mainWindow.show();
-        }
-        updateTrayStatus(null);
-
-        // Show Desktop Notification
-        const gameMinutes = Math.round(durationSeconds / 60 * 10) / 10;
-        new Notification({
-          title: 'Session Tracked! 🎮',
-          body: `You finished playing ${gameName}. Logged ${gameMinutes} min.`
-        }).show();
-
-        // Send finished status to renderer
-        if (mainWindow) {
-          mainWindow.webContents.send('game:status-change', { gameId, status: 'stopped', durationSeconds });
-        }
-      }
-    );
 
     return { success: true };
   } catch (error) {
@@ -801,7 +849,7 @@ ipcMain.handle('game:launch', async (event, gameId, exePath) => {
 
 // Force Kill active game
 ipcMain.handle('game:kill', async (event, gameId) => {
-  const active = processMonitor.getActiveGame();
+  const active = sessionManager.activeSession;
   if (active && active.gameId === gameId) {
     const exeName = active.exeName;
     console.log(`Force stopping monitoring and task-killing: ${exeName}`);
@@ -813,15 +861,22 @@ ipcMain.handle('game:kill', async (event, gameId) => {
       }
     });
 
-    processMonitor.stopMonitoring();
+    processMonitor.unwatch(active.exePath);
+    const endedSession = sessionManager.endSession('manual_stop');
+    const elapsed = endedSession ? endedSession.elapsed : 0;
     
-    // Close overlay and restore main window
+    // Restore main window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    // Close overlay
     if (floatingWindow) {
       floatingWindow.close();
       floatingWindow = null;
-    }
-    if (mainWindow) {
-      mainWindow.show();
     }
     updateTrayStatus(null);
     
@@ -829,22 +884,86 @@ ipcMain.handle('game:kill', async (event, gameId) => {
     const revertGameSql = "UPDATE games SET status = 'Installed' WHERE id = ?";
     const revertProfileSql = "UPDATE profile SET status_type = 'Online', status_text = 'Online' WHERE id = 'user_profile'";
     
-    if (isDbFallback) {
-      executeFallbackRun(revertGameSql, [gameId]);
-      executeFallbackRun(revertProfileSql, []);
-    } else {
-      db.prepare(revertGameSql).run(gameId);
-      db.prepare(revertProfileSql).run();
-    }
+    dbHelper.prepare(revertGameSql).run(gameId);
+    dbHelper.prepare(revertProfileSql).run();
 
     if (mainWindow) {
-      mainWindow.webContents.send('game:status-change', { gameId, status: 'stopped', durationSeconds: 0 });
+      mainWindow.webContents.send('game:status-change', { gameId, status: 'stopped', durationSeconds: elapsed });
     }
     
     return { success: true };
   }
   return { success: false, error: 'No active monitoring session for this game.' };
 });
+
+// IPC: Manual stop session
+ipcMain.handle('session:stop', () => {
+  if (sessionManager.activeSession) {
+    processMonitor.unwatch(sessionManager.activeSession.exePath);
+  }
+  return sessionManager.endSession('manual_stop');
+});
+
+// IPC: Get current session (for when renderer reloads)
+ipcMain.handle('session:getActive', () => {
+  return sessionManager.getActiveSession();
+});
+
+// IPC: Fetch Crackwatch Reddit News
+ipcMain.handle('system:fetch-news', async () => {
+  await fetchNews(dbHelper);
+  return dbHelper.prepare("SELECT * FROM news ORDER BY posted_at DESC LIMIT 25").all();
+});
+
+// Called when process monitor detects game closed
+function handleGameExit(exeName, gameId) {
+  const activeSession = sessionManager.activeSession;
+  const elapsed = activeSession ? Math.floor((Date.now() - activeSession.startTime) / 1000) : 0;
+  
+  sessionManager.endSession('process_exited');
+  
+  // Bring STRAFE back to foreground
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  }
+  
+  // Close overlay
+  if (floatingWindow) {
+    floatingWindow.close();
+    floatingWindow = null;
+  }
+  updateTrayStatus(null);
+
+  // Show Desktop Notification
+  try {
+    const getGameSql = "SELECT name FROM games WHERE id = ?";
+    const game = dbHelper.prepare(getGameSql).get(gameId);
+    const gameName = game ? game.name : 'Game';
+    const gameMinutes = Math.round(elapsed / 60 * 10) / 10;
+    
+    new Notification({
+      title: 'Session Tracked! 🎮',
+      body: `You finished playing ${gameName}. Logged ${gameMinutes} min.`
+    }).show();
+  } catch (err) {
+    console.error(err);
+  }
+
+  // Revert DB statuses
+  const revertGameSql = "UPDATE games SET status = 'Installed' WHERE id = ?";
+  const revertProfileSql = "UPDATE profile SET status_type = 'Online', status_text = 'Online' WHERE id = 'user_profile'";
+  dbHelper.prepare(revertGameSql).run(gameId);
+  dbHelper.prepare(revertProfileSql).run();
+
+  // Send stopped status to renderer
+  if (mainWindow) {
+    mainWindow.webContents.send('game:status-change', { gameId, status: 'stopped', durationSeconds: elapsed });
+  }
+}
 
 // Steam Store API Search Fallback (to avoid CORS in renderer)
 ipcMain.handle('system:steam-search', async (event, term) => {

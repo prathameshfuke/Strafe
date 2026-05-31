@@ -11,6 +11,7 @@
     "package": "npm run build && electron-builder build --win"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.26",
     "framer-motion": "^11.0.15",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.359.0",

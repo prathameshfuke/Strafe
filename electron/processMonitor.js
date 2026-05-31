@@ -1,108 +1,84 @@
 const { exec } = require('child_process');
 const path = require('path');
 
-let activeInterval = null;
-let activeGame = null;
-
-/**
- * Checks if a process is running on Windows using tasklist
- * @param {string} exeName - The executable filename (e.g. 'notepad.exe')
- * @returns {Promise<boolean>}
- */
-function isProcessRunning(exeName) {
-  return new Promise((resolve) => {
-    // Filter tasklist by IMAGENAME
-    exec(`tasklist /FI "IMAGENAME eq ${exeName}" /NH`, (err, stdout) => {
-      if (err) {
-        resolve(false);
-        return;
-      }
-      const isRunning = stdout.toLowerCase().includes(exeName.toLowerCase());
-      resolve(isRunning);
-    });
-  });
-}
-
-/**
- * Starts monitoring a game process
- * @param {string} gameId - The database ID of the game
- * @param {string} exePath - Absolute path to the game's executable
- * @param {Function} onTick - Callback for each second tick: (elapsedSeconds) => void
- * @param {Function} onExit - Callback when game closes: ({ gameId, startTime, endTime, durationSeconds }) => void
- */
-function startMonitoring(gameId, exePath, onTick, onExit) {
-  if (activeInterval) {
-    stopMonitoring();
+class ProcessMonitor {
+  constructor() {
+    this.watchedProcesses = new Map();
+    // key: exeName (lowercase)
+    // value: { gameId, exePath, onExit callback }
+    
+    this.masterPollInterval = null;
   }
 
-  const exeName = path.basename(exePath);
-  const startTime = new Date().toISOString();
-  let elapsedSeconds = 0;
-  let consecFailures = 0;
-  let checkCounter = 0;
-
-  activeGame = {
-    gameId,
-    exePath,
-    exeName,
-    startTime
-  };
-
-  // Periodically check if process is running
-  activeInterval = setInterval(async () => {
-    elapsedSeconds++;
-    onTick(elapsedSeconds);
-
-    checkCounter++;
-    // Check system process list every 5 seconds to reduce CPU impact
-    if (checkCounter >= 5) {
-      checkCounter = 0;
-      const isRunning = await isProcessRunning(exeName);
-      
-      if (isRunning) {
-        consecFailures = 0;
-      } else {
-        consecFailures++;
-        const secondsSinceStart = (new Date() - new Date(startTime)) / 1000;
-        
-        // If it's missing for 3 consecutive checks (~15 seconds) and we are past the 15-second launch grace period
-        if (consecFailures >= 3 && secondsSinceStart > 15) {
-          stopMonitoring();
-          
-          // Calculate actual playtime, correcting for the 15s failure buffer
-          const finalDuration = Math.max(1, elapsedSeconds - 15);
-          onExit({
-            gameId,
-            startTime,
-            endTime: new Date().toISOString(),
-            durationSeconds: Math.round(finalDuration)
-          });
-        }
-      }
+  startMonitoring() {
+    if (this.masterPollInterval) {
+      clearInterval(this.masterPollInterval);
     }
-  }, 1000);
-}
-
-/**
- * Stops the current monitoring loop
- */
-function stopMonitoring() {
-  if (activeInterval) {
-    clearInterval(activeInterval);
-    activeInterval = null;
+    // Single master poll — checks ALL watched processes at once
+    this.masterPollInterval = setInterval(() => {
+      this._pollAll();
+    }, 3000); // Every 3 seconds
   }
-  activeGame = null;
+
+  watch(exePath, gameId, onExit) {
+    const exeName = path.basename(exePath).toLowerCase();
+    this.watchedProcesses.set(exeName, { gameId, exePath, onExit });
+    console.log(`[Monitor] Watching: ${exeName}`);
+  }
+
+  unwatch(exePath) {
+    const exeName = path.basename(exePath).toLowerCase();
+    this.watchedProcesses.delete(exeName);
+  }
+
+  _pollAll() {
+    if (this.watchedProcesses.size === 0) return;
+
+    // Get ALL running processes in one tasklist call (efficient)
+    exec('tasklist /NH /FO CSV', (err, stdout) => {
+      if (err) return;
+
+      const runningProcesses = stdout.toLowerCase();
+
+      this.watchedProcesses.forEach((info, exeName) => {
+        const isRunning = runningProcesses.includes(exeName);
+        
+        if (!isRunning) {
+          console.log(`[Monitor] Detected exit: ${exeName}`);
+          info.onExit(exeName, info.gameId);
+          this.watchedProcesses.delete(exeName);
+        }
+      });
+    });
+  }
+
+  // Scan ALL running processes and match against library
+  // Call this on app startup to detect already-running games
+  scanForLibraryGames(libraryGames, onFound) {
+    exec('tasklist /NH /FO CSV', (err, stdout) => {
+      if (err) return;
+
+      const runningProcesses = stdout.toLowerCase();
+
+      libraryGames.forEach(game => {
+        if (!game.exe_path) return;
+        const exeName = path.basename(game.exe_path).toLowerCase();
+        
+        if (runningProcesses.includes(exeName)) {
+          console.log(`[Monitor] Found already-running game: ${game.name}`);
+          onFound(game);
+        }
+      });
+    });
+  }
+
+  stopMonitoring() {
+    if (this.masterPollInterval) {
+      clearInterval(this.masterPollInterval);
+      this.masterPollInterval = null;
+    }
+    this.watchedProcesses.clear();
+  }
 }
 
-/**
- * Gets the current active game stats
- */
-function getActiveGame() {
-  return activeGame;
-}
-
-module.exports = {
-  startMonitoring,
-  stopMonitoring,
-  getActiveGame
-};
+module.exports = ProcessMonitor;

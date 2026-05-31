@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/useGameStore';
 import { 
@@ -15,10 +15,16 @@ export default function GameDetail() {
   const { 
     games, sessions, achievements, toggleFavorite, deleteGame, updateGameDetails,
     addManualSession, updateSessionNote, toggleAchievement, addAchievement,
-    launchGame, stopGame, activeGameId, activeSessionSeconds
+    launchGame, stopGame, activeGameId, activeSessionSeconds, fetchGameDetails
   } = useGameStore();
 
   const game = useMemo(() => games.find(g => g.id === id), [games, id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchGameDetails(id);
+    }
+  }, [id, fetchGameDetails]);
   
   if (!game) {
     return (
@@ -43,6 +49,13 @@ export default function GameDetail() {
   const [gameDescription, setGameDescription] = useState(game.description || '');
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editingSessionNote, setEditingSessionNote] = useState('');
+
+  // Sync state description when database load finishes
+  useEffect(() => {
+    if (game && game.description) {
+      setGameDescription(game.description);
+    }
+  }, [game]);
 
   const gameSessions = useMemo(() => {
     return sessions.filter(s => s.game_id === game.id).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));

@@ -55,5 +55,29 @@ contextBridge.exposeInMainWorld('strafe', {
   openDataFolder: electronBridge.system.openDataFolder,
   getVersion: electronBridge.system.getVersion,
   cacheImage: (gameId, url) => ipcRenderer.invoke('game:cache-image', gameId, url),
-  steamSearch: (term) => ipcRenderer.invoke('system:steam-search', term)
+  steamSearch: (term) => ipcRenderer.invoke('system:steam-search', term),
+  
+  // New session & process hooks
+  onSessionTick: (cb) => {
+    const handler = (_, data) => cb(data);
+    ipcRenderer.on('session:tick', handler);
+    return () => ipcRenderer.removeListener('session:tick', handler);
+  },
+  onSessionEnded: (cb) => {
+    const handler = (_, data) => cb(data);
+    ipcRenderer.on('session:ended', handler);
+    return () => ipcRenderer.removeListener('session:ended', handler);
+  },
+  getActiveSession: () => ipcRenderer.invoke('session:getActive'),
+  stopSession: () => ipcRenderer.invoke('session:stop'),
+  onMinimized: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('app:minimized', handler);
+    return () => ipcRenderer.removeListener('app:minimized', handler);
+  },
+  onRestored: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('app:restored', handler);
+    return () => ipcRenderer.removeListener('app:restored', handler);
+  }
 });

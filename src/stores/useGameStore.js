@@ -119,7 +119,7 @@ export const useGameStore = create((set, get) => ({
     set({ loading: true });
     if (hasElectron) {
       try {
-        const games = await window.electron.db.query("SELECT * FROM games");
+        const games = await window.electron.db.query("SELECT id, name, exe_path, cover_art, genre, developer, status, rating, is_favorite, date_added, rawg_id, steam_app_id, cover_portrait, release_year, total_seconds, last_played FROM games");
         const sessions = await window.electron.db.query("SELECT * FROM sessions");
         const achievements = await window.electron.db.query("SELECT * FROM achievements");
         const collections = await window.electron.db.query("SELECT * FROM collections");
@@ -528,5 +528,20 @@ export const useGameStore = create((set, get) => ({
 
   setActiveGameId: (gameId) => {
     set({ activeGameId: gameId });
+  },
+
+  fetchGameDetails: async (gameId) => {
+    if (hasElectron) {
+      try {
+        const details = await window.electron.db.query("SELECT description FROM games WHERE id = ?", [gameId]);
+        if (details && details[0]) {
+          set(state => ({
+            games: state.games.map(g => g.id === gameId ? { ...g, description: details[0].description } : g)
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch game details", err);
+      }
+    }
   }
 }));
