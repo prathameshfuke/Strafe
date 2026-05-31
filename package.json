@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:renderer": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && electron ."
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "build": "vite build",
+    "package": "npm run build && electron-builder build --win"
   },
   "dependencies": {
     "framer-motion": "^11.0.15",
@@ -23,8 +25,34 @@
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
     "electron": "^28.2.0",
+    "electron-builder": "^24.13.3",
     "tailwindcss": "^4.0.0",
     "vite": "^5.1.6",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.strafe.vaulttrack",
+    "productName": "STRAFE",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
