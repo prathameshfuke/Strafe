@@ -1,0 +1,30 @@
+{
+  "name": "vaulttrack",
+  "version": "1.0.0",
+  "description": "VaultTrack - Cyberpunk Game Library Manager",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && electron ."
+  },
+  "dependencies": {
+    "framer-motion": "^11.0.15",
+    "html2canvas": "^1.4.1",
+    "lucide-react": "^0.359.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "recharts": "^2.12.3",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "electron": "^28.2.0",
+    "tailwindcss": "^4.0.0",
+    "vite": "^5.1.6",
+    "wait-on": "^7.2.0"
+  }
+}

@@ -1,0 +1,612 @@
+@import "tailwindcss";
+
+/* ================================================================
+   VAULTTRACK DESIGN SYSTEM — Warm & Premium
+   Inspired by Raycast, Arc Browser, Doppler
+   ================================================================ */
+
+/* ---- Light Mode (default) ---- */
+:root,
+.light {
+  --bg-base: #f5f0eb;
+  --bg-surface: #faf7f4;
+  --bg-elevated: #fefefe;
+  --bg-hover: #ede8e1;
+  --bg-sidebar: #e8e2d9;
+
+  --accent: #c96a2e;
+  --accent-hover: #b55d27;
+  --accent-soft: #f0e0d0;
+  --accent-secondary: #7c6a9e;
+  --accent-secondary-soft: #ebe4f0;
+
+  --text-primary: #1a1612;
+  --text-secondary: #6b6157;
+  --text-tertiary: #b0a89e;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  --status-online: #4a9e5c;
+  --status-online-soft: rgba(74, 158, 92, 0.12);
+  --status-ingame: #c96a2e;
+  --status-ingame-soft: rgba(201, 106, 46, 0.12);
+  --status-away: #b8923e;
+  --status-away-soft: rgba(184, 146, 62, 0.12);
+  --status-dnd: #b85a5a;
+  --status-dnd-soft: rgba(184, 90, 90, 0.12);
+
+  --danger: #b85a5a;
+  --danger-soft: rgba(184, 90, 90, 0.08);
+  --success: #4a9e5c;
+  --success-soft: rgba(74, 158, 92, 0.08);
+
+  --shimmer-from: #e8e2d9;
+  --shimmer-to: #f0ebe3;
+
+  color-scheme: light;
+}
+
+/* ---- Dark Mode ---- */
+.dark {
+  --bg-base: #161412;
+  --bg-surface: #1e1b18;
+  --bg-elevated: #262219;
+  --bg-hover: #2d2925;
+  --bg-sidebar: #131210;
+
+  --accent: #e07d45;
+  --accent-hover: #c96a2e;
+  --accent-soft: rgba(224, 125, 69, 0.12);
+  --accent-secondary: #9b87c2;
+  --accent-secondary-soft: rgba(155, 135, 194, 0.12);
+
+  --text-primary: #f0ebe4;
+  --text-secondary: #8a7f74;
+  --text-tertiary: #4a4540;
+
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  --status-online: #5cb86a;
+  --status-online-soft: rgba(92, 184, 106, 0.12);
+  --status-ingame: #e07d45;
+  --status-ingame-soft: rgba(224, 125, 69, 0.12);
+  --status-away: #c9a64a;
+  --status-away-soft: rgba(201, 166, 74, 0.12);
+  --status-dnd: #c96a6a;
+  --status-dnd-soft: rgba(201, 106, 106, 0.12);
+
+  --danger: #c96a6a;
+  --danger-soft: rgba(201, 106, 106, 0.10);
+  --success: #5cb86a;
+  --success-soft: rgba(92, 184, 106, 0.10);
+
+  --shimmer-from: #2d2925;
+  --shimmer-to: #1e1b18;
+
+  color-scheme: dark;
+}
+
+/* ---- Tailwind Theme Extension ---- */
+@theme {
+  --font-display: 'Fraunces', serif;
+  --font-ui: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+}
+
+/* ================================================================
+   BASE STYLES
+   ================================================================ */
+@layer base {
+  * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  body {
+    font-family: var(--font-ui);
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.6;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-ui);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  /* Prevent transition flicker on load */
+  .no-transition * {
+    transition: none !important;
+  }
+}
+
+/* ================================================================
+   SCROLLBAR — 4px warm, rounded
+   ================================================================ */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+  }
+}
+
+/* ================================================================
+   COMPONENT CLASSES
+   ================================================================ */
+
+/* --- Cards --- */
+.vt-card {
+  background: var(--bg-surface);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.vt-card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.vt-card-hover:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.dark .vt-card-hover:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* --- Stat Cards --- */
+.vt-stat-card {
+  background: var(--bg-surface);
+  border-radius: 10px;
+  padding: 20px;
+  border: none;
+}
+
+/* --- Buttons --- */
+.vt-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--accent);
+  color: #fefefe;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.vt-btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.vt-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.vt-btn-secondary:hover {
+  background: var(--border);
+}
+
+.vt-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.vt-btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.vt-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.vt-btn-danger:hover {
+  background: var(--danger);
+  color: #fefefe;
+}
+
+/* --- Input Fields --- */
+.vt-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 400;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.vt-input:focus {
+  border-color: var(--accent);
+}
+
+.vt-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.vt-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 400;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  resize: none;
+  transition: border-color 0.15s ease;
+}
+
+.vt-textarea:focus {
+  border-color: var(--accent);
+}
+
+.vt-textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* --- Select --- */
+.vt-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236b6157' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.vt-select:focus {
+  border-color: var(--accent);
+}
+
+.vt-select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* --- Status Badges --- */
+.vt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.vt-badge-online {
+  background: var(--status-online-soft);
+  color: var(--status-online);
+}
+
+.vt-badge-ingame {
+  background: var(--status-ingame-soft);
+  color: var(--status-ingame);
+}
+
+.vt-badge-away {
+  background: var(--status-away-soft);
+  color: var(--status-away);
+}
+
+.vt-badge-dnd {
+  background: var(--status-dnd-soft);
+  color: var(--status-dnd);
+}
+
+.vt-badge-completed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.vt-badge-playing {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.vt-badge-plan {
+  background: var(--accent-secondary-soft);
+  color: var(--accent-secondary);
+}
+
+.vt-badge-default {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+/* --- Section Header --- */
+.vt-section-header {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+/* --- Page Title --- */
+.vt-page-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 40px;
+  line-height: 1.1;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* --- Display Number --- */
+.vt-display-number {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 36px;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+/* --- Mono Number --- */
+.vt-mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+/* --- Toggle Switch --- */
+.vt-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.vt-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.vt-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  transition: background-color 0.2s ease;
+}
+
+.vt-toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.vt-toggle input:checked + .vt-toggle-slider {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.vt-toggle input:checked + .vt-toggle-slider::before {
+  background: var(--accent);
+  transform: translateX(18px);
+}
+
+/* --- Heatmap Cells --- */
+.vt-heatmap-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  transition: transform 0.15s ease;
+}
+
+.vt-heatmap-cell:hover {
+  transform: scale(1.3);
+}
+
+.vt-heatmap-empty {
+  background: var(--bg-hover);
+}
+
+.vt-heatmap-low {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.vt-heatmap-med {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.vt-heatmap-high {
+  background: color-mix(in srgb, var(--accent) 90%, transparent);
+}
+
+/* --- Tooltip Popover (for heatmap) --- */
+.vt-tooltip {
+  position: relative;
+}
+
+.vt-tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 400;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 50;
+}
+
+.vt-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* --- Shimmer Loading --- */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.vt-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-from) 25%,
+    var(--shimmer-to) 50%,
+    var(--shimmer-from) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* --- Status Dot with pulse (for In-Game only) --- */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.vt-pulse-dot {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+/* --- Modal Backdrop --- */
+.vt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 22, 18, 0.6);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.dark .vt-modal-backdrop {
+  background: rgba(10, 8, 6, 0.75);
+}
+
+.vt-modal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Game Card Cover Inner Shadow --- */
+.vt-cover-shadow {
+  box-shadow: inset 0 -20px 30px -10px rgba(0, 0, 0, 0.15);
+}
+
+.dark .vt-cover-shadow {
+  box-shadow: inset 0 -20px 30px -10px rgba(0, 0, 0, 0.4);
+}
