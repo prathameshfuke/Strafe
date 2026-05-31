@@ -26,22 +26,94 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Convert icon.png to proper icon.ico (Windows multi-size)
+        shell: pwsh
+        run: |
+          # Install ImageMagick if not present, otherwise use PowerShell to create a valid ICO
+          # We'll use the System.Drawing to convert PNG to ICO properly
+          Add-Type -AssemblyName System.Drawing
+
+          $png = [System.Drawing.Image]::FromFile("$PWD\icon.png")
+
+          # Create a proper ICO with multiple sizes (16, 32, 48, 256)
+          $sizes = @(16, 32, 48, 256)
+          $ms = New-Object System.IO.MemoryStream
+
+          $bw = New-Object System.IO.BinaryWriter($ms)
+
+          # ICO header
+          $bw.Write([UInt16]0)       # Reserved
+          $bw.Write([UInt16]1)       # Type: 1 = ICO
+          $bw.Write([UInt16]$sizes.Count)  # Number of images
+
+          # Calculate data offset (header = 6 bytes, each entry = 16 bytes)
+          $dataOffset = 6 + ($sizes.Count * 16)
+          $imageDataList = @()
+
+          foreach ($size in $sizes) {
+            $bmp = New-Object System.Drawing.Bitmap($size, $size)
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($png, 0, 0, $size, $size)
+            $g.Dispose()
+
+            $imgMs = New-Object System.IO.MemoryStream
+            $bmp.Save($imgMs, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+            $imgData = $imgMs.ToArray()
+            $imgMs.Dispose()
+            $imageDataList += ,$imgData
+          }
+
+          # Write directory entries
+          $offset = $dataOffset
+          for ($i = 0; $i -lt $sizes.Count; $i++) {
+            $size = $sizes[$i]
+            $data = $imageDataList[$i]
+            $w = if ($size -eq 256) { 0 } else { $size }
+            $h = if ($size -eq 256) { 0 } else { $size }
+            $bw.Write([byte]$w)          # Width (0 = 256)
+            $bw.Write([byte]$h)          # Height (0 = 256)
+            $bw.Write([byte]0)           # Color count
+            $bw.Write([byte]0)           # Reserved
+            $bw.Write([UInt16]1)         # Planes
+            $bw.Write([UInt16]32)        # Bit count
+            $bw.Write([UInt32]$data.Length)  # Data size
+            $bw.Write([UInt32]$offset)   # Data offset
+            $offset += $data.Length
+          }
+
+          # Write image data
+          foreach ($data in $imageDataList) {
+            $bw.Write($data)
+          }
+
+          $bw.Flush()
+          $icoBytes = $ms.ToArray()
+          $bw.Dispose()
+          $ms.Dispose()
+          $png.Dispose()
+
+          [System.IO.File]::WriteAllBytes("$PWD\icon.ico", $icoBytes)
+          Write-Host "icon.ico created successfully ($($icoBytes.Length) bytes)"
+
       - name: Build Vite renderer
         run: npx vite build
 
-      - name: Build Windows installer (electron-builder)
+      - name: Build Windows installer + portable exe (electron-builder)
         run: npx electron-builder --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List release artifacts
-        run: Get-ChildItem release/ -Recurse | Select-Object FullName, Length
         shell: pwsh
+        run: Get-ChildItem release/ | Where-Object { $_.Extension -match '\.(exe|yml|blockmap)$' } | Select-Object Name, Length
 
-      - name: Upload installer to GitHub Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          name: "STRAFE v${{ github.ref_name }}"
           files: |
             release/*.exe
             release/*.yml

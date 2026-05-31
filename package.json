@@ -50,12 +50,17 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
       ],
       "icon": "icon.ico",
-      "sign": false,
-      "certificateFile": null,
-      "certificatePassword": null
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
@@ -64,7 +69,11 @@
       "createStartMenuShortcut": true,
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico",
-      "installerHeaderIcon": "icon.ico"
+      "installerHeaderIcon": "icon.ico",
+      "shortcutName": "STRAFE"
+    },
+    "portable": {
+      "artifactName": "STRAFE-Portable-${version}.exe"
     }
   }
 }

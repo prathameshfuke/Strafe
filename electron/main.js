@@ -534,13 +534,18 @@ function createMainWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
 
+  // Use .ico on Windows for proper icon display (PNG shows default Electron icon)
+  const mainIconPath = process.platform === 'win32'
+    ? path.join(__dirname, '../icon.ico')
+    : path.join(__dirname, '../icon.png');
+
   mainWindow = new BrowserWindow({
     width: width,
     height: height,
     minWidth: 1024,
     minHeight: 700,
     frame: false, // frameless for custom cyberpunk titlebar
-    icon: path.join(__dirname, '../icon.png'),
+    icon: mainIconPath,
     backgroundColor: '#161412', // Match warm/dark sidebar theme to prevent white flash
     show: false,
     skipTaskbar: false,        // CRITICAL: always show in taskbar
@@ -600,11 +605,15 @@ function createFloatingWindow(gameId, name, coverArt) {
     floatingWindow.close();
   }
 
+  const floatIconPath = process.platform === 'win32'
+    ? path.join(__dirname, '../icon.ico')
+    : path.join(__dirname, '../icon.png');
+
   floatingWindow = new BrowserWindow({
     width: 340,
     height: 180,
     frame: false,
-    icon: path.join(__dirname, '../icon.png'),
+    icon: floatIconPath,
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
@@ -631,14 +640,18 @@ function createFloatingWindow(gameId, name, coverArt) {
 
 // --- 4. Tray Integration ---
 function createTray() {
-  const customIconPath = path.join(__dirname, '../icon.png');
-  const iconPath = path.join(__dirname, 'tray_icon.png');
-  
-  const trayIcon = fs.existsSync(customIconPath)
-    ? customIconPath
-    : fs.existsSync(iconPath)
-      ? iconPath
-      : path.join(__dirname, '../public/favicon.ico');
+  // Use .ico for tray on Windows — PNG sometimes fails or shows generic icon
+  const icoPath = path.join(__dirname, '../icon.ico');
+  const pngPath = path.join(__dirname, '../icon.png');
+  const fallbackPath = path.join(__dirname, 'tray_icon.png');
+
+  const trayIcon = (process.platform === 'win32' && fs.existsSync(icoPath))
+    ? icoPath
+    : fs.existsSync(pngPath)
+      ? pngPath
+      : fs.existsSync(fallbackPath)
+        ? fallbackPath
+        : path.join(__dirname, '../public/favicon.ico');
     
   try {
     tray = new Tray(trayIcon);
