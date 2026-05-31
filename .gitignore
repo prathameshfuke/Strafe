@@ -28,3 +28,7 @@ Thumbs.db
 
 # Vite local cache
 .vite/
+
+# Electron build output (don't commit binaries)
+release/
+out/

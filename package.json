@@ -2,13 +2,15 @@
   "name": "vaulttrack",
   "version": "1.0.0",
   "description": "VaultTrack - Cyberpunk Game Library Manager",
+  "author": "STRAFE Team",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:renderer": "vite",
     "dev:electron": "wait-on http://localhost:5173 && electron .",
     "build": "vite build",
-    "package": "npm run build && electron-builder build --win"
+    "package:win": "vite build && electron-builder --win --publish never",
+    "package": "npm run package:win"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",
@@ -36,7 +38,8 @@
     "appId": "com.strafe.vaulttrack",
     "productName": "STRAFE",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "."
     },
     "files": [
       "dist/**/*",
@@ -49,13 +52,19 @@
       "target": [
         "nsis"
       ],
-      "icon": "icon.ico"
+      "icon": "icon.ico",
+      "sign": false,
+      "certificateFile": null,
+      "certificatePassword": null
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico"
     }
   }
 }

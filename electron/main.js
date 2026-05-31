@@ -5,6 +5,14 @@ const { exec, spawn } = require('child_process');
 const https = require('https');
 const http = require('http');
 
+// Set app icon on Windows
+if (process.platform === 'win32') {
+  const iconPath = path.join(__dirname, '../icon.ico');
+  if (fs.existsSync(iconPath)) {
+    app.setAppUserModelId('com.strafe.vaulttrack');
+  }
+}
+
 // Optimize memory parameters
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -146,14 +154,14 @@ function runMigrations() {
     );
 
     CREATE TABLE IF NOT EXISTS profile (
-      id TEXT PRIMARY KEY DEFAULT 'user_profile',
-      username TEXT DEFAULT 'Viper_Gamer',
+      id TEXT PRIMARY KEY,
+      username TEXT,
       avatar_path TEXT,
-      bio TEXT DEFAULT 'Ready to play.',
-      status_text TEXT DEFAULT 'Online',
-      status_type TEXT DEFAULT 'Online',
-      age INTEGER DEFAULT 0,
-      favorite_genre TEXT DEFAULT '',
+      bio TEXT,
+      status_text TEXT,
+      status_type TEXT,
+      age INTEGER,
+      favorite_genre TEXT,
       is_onboarded INTEGER DEFAULT 0
     );
 
@@ -236,7 +244,7 @@ function runMigrations() {
   // Ensure default profile exists
   const profileExists = db.prepare("SELECT id FROM profile WHERE id = 'user_profile'").get();
   if (!profileExists) {
-    db.prepare("INSERT INTO profile (id, username, bio, status_text, status_type, age, favorite_genre, is_onboarded) VALUES ('user_profile', 'Viper_Gamer', 'Hacking the mainframe...', 'Online', 'Online', 0, '', 0)").run();
+    db.prepare("INSERT INTO profile (id, is_onboarded) VALUES ('user_profile', 0)").run();
   }
 }
 

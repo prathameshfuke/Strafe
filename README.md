@@ -202,6 +202,25 @@ npm run package
 
 The resulting setup installer will be generated inside the `release/` directory (e.g., `release/STRAFE Setup 1.0.0.exe`).
 
+## First GitHub Release (Recommended Flow)
+
+1. Update the app version in `package.json` (example: `1.0.0` -> `1.0.1`).
+2. Commit and push changes to `main`.
+3. Create and push a matching tag:
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which builds the Windows installer and publishes it to GitHub Releases automatically.
+
+For a local pre-check before tagging:
+
+```bash
+npm run package:win
+```
+
 ---
 
 ## Troubleshooting and Fallbacks
