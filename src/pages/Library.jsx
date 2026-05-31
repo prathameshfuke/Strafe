@@ -17,6 +17,62 @@ import {
   X
 } from 'lucide-react';
 
+const cleanGameName = (rawName) => {
+  let name = rawName;
+
+  // Step 1: Remove file extension
+  name = name.replace(/\.(exe|bat|cmd|lnk)$/i, '');
+
+  // Step 2: Remove common engine/build suffixes (no leading dashes)
+  const buildSuffixes = [
+    'Win64', 'Win32', 'x64', 'x86',
+    'Shipping', 'Release', 'Final', 'Launch',
+    'Game', 'Client', 'Launcher', 'Desktop',
+    'DX11', 'DX12', 'Vulkan',
+    'UWP', 'EGS', 'Steam', 'GOG',
+    '_BE',
+    'Win64-Shipping',
+  ];
+  buildSuffixes.forEach(suffix => {
+    name = name.replace(new RegExp(`[\\s._-]?${suffix}`, 'gi'), '');
+  });
+
+  // Step 3: Split CamelCase into separate words
+  name = name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+
+  // Step 4: Split digits from letters
+  name = name.replace(/([a-zA-Z])(\d)/g, '$1 $2').replace(/(\d)([a-zA-Z])/g, '$1 $2');
+
+  // Step 5: Replace separators with spaces
+  name = name.replace(/[._\-]+/g, ' ');
+
+  // Step 6: Known abbreviation expansions
+  const expansions = {
+    'Lot\\s*DK': 'Lord of the Dark Knight',
+    'Lot\\s*R': 'Lord of the Rings',
+    'Go\\s*T': 'Game of Thrones',
+    'GTA': 'Grand Theft Auto',
+    'RDR': 'Red Dead Redemption',
+    'AC': 'Assassins Creed',
+    'BF': 'Battlefield',
+    'CoD': 'Call of Duty',
+    'MW': 'Modern Warfare',
+    'TW': 'The Witcher',
+    'DS': 'Dark Souls',
+    'FF': 'Final Fantasy',
+  };
+  Object.entries(expansions).forEach(([abbr, full]) => {
+    name = name.replace(new RegExp(`\\b${abbr}\\b`, 'gi'), full);
+  });
+
+  // Step 7: Clean extra whitespace
+  name = name.replace(/\s+/g, ' ').trim();
+
+  return name;
+};
+
 export default function Library() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -103,18 +159,70 @@ export default function Library() {
       const path = await window.electron.system.selectExe();
       if (path) {
         setExePath(path);
-        const filename = path.split('\\').pop().replace('.exe', '');
-        const cleanedName = filename.replace(/[_-]/g, ' ').replace(/\b[a-z]/g, m => m.toUpperCase());
+        const filename = path.split('\\').pop();
+        const cleanedName = cleanGameName(filename);
         setGameName(cleanedName);
         setWizardStep(2);
-        searchRAWGMetadata(cleanedName);
+        searchRAWGMetadata(filename);
       }
     } else {
       setExePath('C:\\MockGames\\Cyberpunk2077\\Cyberpunk2077.exe');
       setGameName('Cyberpunk 2077');
       setWizardStep(2);
-      searchRAWGMetadata('Cyberpunk 2077');
+      searchRAWGMetadata('Cyberpunk2077.exe');
     }
+  };
+
+  const searchGameWithFallbacks = async (rawExeName, apiKey) => {
+    const cleaned = cleanGameName(rawExeName);
+    
+    // Generate multiple search attempts, from most to least specific
+    const searchAttempts = [
+      cleaned,
+      cleaned.split(' ').slice(0, 4).join(' '),
+      cleaned.split(' ').slice(0, 3).join(' '),
+      cleaned.split(' ').slice(0, 2).join(' '),
+      cleaned.split(' ')[0],
+    ];
+
+    for (const attempt of searchAttempts) {
+      if (!attempt || attempt.length < 2) continue;
+
+      try {
+        const res = await fetch(
+          `https://api.rawg.io/api/games?search=${encodeURIComponent(attempt)}&key=${apiKey}&page_size=6`
+        );
+        const data = await res.json();
+
+        if (data.results && data.results.length > 0) {
+          console.log(`RAWG matched "${attempt}" → ${data.results[0].name}`);
+          return data.results;
+        }
+      } catch (e) {
+        console.warn(`RAWG fetch error for "${attempt}":`, e);
+      }
+    }
+
+    // Final fallback: Steam store search via Electron main process to avoid CORS
+    if (typeof window !== 'undefined' && window.electron && window.electron.system.steamSearch) {
+      try {
+        const steamData = await window.electron.system.steamSearch(cleaned);
+        if (steamData && steamData.items && steamData.items.length > 0) {
+          return steamData.items.map(item => ({
+            id: item.id,
+            name: item.name,
+            background_image: `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/library_600x900.jpg`,
+            genres: [{ name: 'Steam Game' }],
+            released: null,
+            steam_app_id: item.id
+          }));
+        }
+      } catch (e) {
+        console.warn("Steam fallback error:", e);
+      }
+    }
+
+    return [];
   };
 
   const searchRAWGMetadata = async (name) => {
@@ -122,15 +230,19 @@ export default function Library() {
     setMetadataList([]);
     const rawgKey = settings.rawg_api_key || 'c537d92ffbf04a3e9d8cb404e8d35f79';
     try {
-      const response = await fetch(`https://api.rawg.io/api/games?search=${encodeURIComponent(name)}&key=${rawgKey}&page_size=5`);
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        setMetadataList(data.results);
-        setSelectedMetadata(data.results[0]);
-        populateMetadataDetails(data.results[0]);
-      } else { setSelectedMetadata(null); }
-    } catch { setSelectedMetadata(null); }
-    finally { setLoadingMetadata(false); }
+      const results = await searchGameWithFallbacks(name, rawgKey);
+      if (results && results.length > 0) {
+        setMetadataList(results);
+        setSelectedMetadata(results[0]);
+        populateMetadataDetails(results[0]);
+      } else {
+        setSelectedMetadata(null);
+      }
+    } catch {
+      setSelectedMetadata(null);
+    } finally {
+      setLoadingMetadata(false);
+    }
   };
 
   const populateMetadataDetails = (meta) => {
@@ -156,10 +268,10 @@ export default function Library() {
     const file = e.dataTransfer.files[0];
     if (file && file.path && file.path.toLowerCase().endsWith('.exe')) {
       setExePath(file.path);
-      const filename = file.name.replace('.exe', '');
-      const cleanedName = filename.replace(/[_-]/g, ' ').replace(/\b[a-z]/g, m => m.toUpperCase());
+      const filename = file.name;
+      const cleanedName = cleanGameName(filename);
       setGameName(cleanedName); setShowWizard(true); setWizardStep(2);
-      searchRAWGMetadata(cleanedName);
+      searchRAWGMetadata(filename);
     }
   };
 
@@ -430,12 +542,40 @@ export default function Library() {
                             style={{ background: selectedMetadata?.id === meta.id ? 'var(--accent-soft)' : 'var(--bg-base)', border: `1px solid ${selectedMetadata?.id === meta.id ? 'var(--accent)' : 'var(--border)'}` }}
                           >
                             <img src={meta.background_image} alt={meta.name} className="w-8 h-10 object-cover rounded shrink-0" style={{ border: '1px solid var(--border)' }} />
-                            <div className="min-w-0">
-                              <p className="text-[13px] truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{meta.name}</p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <p className="text-[13px] truncate" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{meta.name}</p>
+                                {meta.released && (
+                                  <span className="text-[11px] shrink-0 font-medium" style={{ color: 'var(--text-tertiary)' }}>
+                                    {meta.released.split('-')[0]}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[11px] truncate" style={{ color: 'var(--text-tertiary)' }}>{meta.genres?.map(g => g.name).join(', ')}</p>
                             </div>
                           </div>
                         ))}
+
+                        {/* None of these Option */}
+                        <div onClick={() => {
+                          setSelectedMetadata(null);
+                          setManualCoverArt('');
+                          setManualGenre('');
+                          setManualDeveloper('');
+                          setManualDescription('');
+                          setWizardStep(3);
+                        }}
+                          className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors"
+                          style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}
+                        >
+                          <div className="w-8 h-10 flex items-center justify-center bg-[var(--bg-hover)] rounded shrink-0 border border-[var(--border)]">
+                            <X className="w-4 h-4 text-[var(--text-secondary)]" />
+                          </div>
+                          <div>
+                            <p className="text-[13px]" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>None of these / Manual Entry</p>
+                            <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Skip match and enter details manually</p>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

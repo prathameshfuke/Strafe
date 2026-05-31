@@ -1,8 +1,15 @@
-const { app, BrowserWindow, ipcMain, dialog, Notification, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Notification, Tray, Menu, protocol, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const processMonitor = require('./processMonitor');
+const https = require('https');
+const http = require('http');
+
+// Register custom protocol for local cover art loading
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'media', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true } }
+]);
 
 let mainWindow = null;
 let floatingWindow = null;
@@ -11,6 +18,7 @@ let db = null;
 let isDbFallback = false;
 let fallbackDbPath = '';
 let fallbackData = {};
+let achievementInterval = null;
 
 // --- 1. Database Initialization ---
 function initDatabase() {
@@ -48,7 +56,11 @@ function runMigrations() {
       rating INTEGER DEFAULT 0,
       is_favorite INTEGER DEFAULT 0,
       date_added TEXT NOT NULL,
-      rawg_id INTEGER
+      rawg_id INTEGER,
+      steam_app_id INTEGER,
+      cover_portrait TEXT,
+      cover_hero TEXT,
+      release_year INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -69,6 +81,11 @@ function runMigrations() {
       rarity TEXT DEFAULT 'Common',
       unlocked INTEGER DEFAULT 0,
       unlocked_date TEXT,
+      key TEXT,
+      icon_url TEXT,
+      icon_local TEXT,
+      global_percent REAL,
+      unlocked_session_id INTEGER,
       FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
     );
 
@@ -103,6 +120,28 @@ function runMigrations() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS news (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reddit_id TEXT UNIQUE,
+      title TEXT,
+      url TEXT,
+      upvotes INTEGER,
+      comments INTEGER,
+      posted_at TEXT,
+      fetched_at TEXT,
+      is_read INTEGER DEFAULT 0,
+      matched_game_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS player_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id TEXT,
+      milestone INTEGER,
+      playstyle TEXT,
+      generated_at TEXT,
+      exported_path TEXT
+    );
   `);
 
   // Run dynamic schema migrations for existing databases
@@ -114,6 +153,37 @@ function runMigrations() {
   } catch (e) {}
   try {
     db.exec("ALTER TABLE profile ADD COLUMN is_onboarded INTEGER DEFAULT 0");
+  } catch (e) {}
+
+  // Games migrations
+  try {
+    db.exec("ALTER TABLE games ADD COLUMN steam_app_id INTEGER");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE games ADD COLUMN cover_portrait TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE games ADD COLUMN cover_hero TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE games ADD COLUMN release_year INTEGER");
+  } catch (e) {}
+
+  // Achievements migrations
+  try {
+    db.exec("ALTER TABLE achievements ADD COLUMN key TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE achievements ADD COLUMN icon_url TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE achievements ADD COLUMN icon_local TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE achievements ADD COLUMN global_percent REAL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE achievements ADD COLUMN unlocked_session_id INTEGER");
   } catch (e) {}
 
   // Ensure default profile exists
@@ -140,6 +210,8 @@ function initFallbackDb() {
   fallbackData.achievements = fallbackData.achievements || [];
   fallbackData.collections = fallbackData.collections || [];
   fallbackData.collection_games = fallbackData.collection_games || [];
+  fallbackData.news = fallbackData.news || [];
+  fallbackData.player_cards = fallbackData.player_cards || [];
   fallbackData.profile = fallbackData.profile || {
     id: 'user_profile',
     username: 'Viper_Gamer',
@@ -205,6 +277,12 @@ function executeFallbackQuery(sql, params = []) {
     if (query.includes('from settings')) {
       return Object.entries(fallbackData.settings).map(([key, value]) => ({ key, value }));
     }
+    if (query.includes('from news')) {
+      return fallbackData.news;
+    }
+    if (query.includes('from player_cards')) {
+      return fallbackData.player_cards;
+    }
   }
   return [];
 }
@@ -213,11 +291,11 @@ function executeFallbackRun(sql, params = []) {
   const query = sql.trim().toLowerCase();
   
   if (query.startsWith('insert into games')) {
-    // games(id, name, exe_path, cover_art, genre, developer, description, status, rating, is_favorite, date_added, rawg_id)
-    const [id, name, exe_path, cover_art, genre, developer, description, status, rating, is_favorite, date_added, rawg_id] = params;
+    // games(id, name, exe_path, cover_art, genre, developer, description, status, rating, is_favorite, date_added, rawg_id, steam_app_id, cover_portrait, cover_hero, release_year)
+    const [id, name, exe_path, cover_art, genre, developer, description, status, rating, is_favorite, date_added, rawg_id, steam_app_id, cover_portrait, cover_hero, release_year] = params;
     // Remove duplicate if exists
     fallbackData.games = fallbackData.games.filter(g => g.id !== id);
-    fallbackData.games.push({ id, name, exe_path, cover_art, genre, developer, description, status, rating, is_favorite, date_added, rawg_id });
+    fallbackData.games.push({ id, name, exe_path, cover_art, genre, developer, description, status, rating, is_favorite, date_added, rawg_id, steam_app_id, cover_portrait, cover_hero, release_year });
     saveFallbackDb();
     return { changes: 1, lastInsertRowid: id };
   }
@@ -231,11 +309,11 @@ function executeFallbackRun(sql, params = []) {
     return { changes: 1, lastInsertRowid: id };
   }
 
-  if (query.startsWith('insert into achievements')) {
-    // achievements(id, game_id, name, description, rarity, unlocked, unlocked_date)
-    const [id, game_id, name, description, rarity, unlocked, unlocked_date] = params;
+  if (query.startsWith('insert into achievements') || query.startsWith('insert or replace into achievements')) {
+    // achievements(id, game_id, name, description, rarity, unlocked, unlocked_date, key, icon_url, icon_local, global_percent, unlocked_session_id)
+    const [id, game_id, name, description, rarity, unlocked, unlocked_date, key, icon_url, icon_local, global_percent, unlocked_session_id] = params;
     fallbackData.achievements = fallbackData.achievements.filter(a => a.id !== id);
-    fallbackData.achievements.push({ id, game_id, name, description, rarity, unlocked, unlocked_date });
+    fallbackData.achievements.push({ id, game_id, name, description, rarity, unlocked, unlocked_date, key, icon_url, icon_local, global_percent, unlocked_session_id });
     saveFallbackDb();
     return { changes: 1, lastInsertRowid: id };
   }
@@ -250,6 +328,21 @@ function executeFallbackRun(sql, params = []) {
   if (query.startsWith('insert into collection_games')) {
     const [collection_id, game_id] = params;
     fallbackData.collection_games.push({ collection_id, game_id });
+    saveFallbackDb();
+    return { changes: 1 };
+  }
+
+  if (query.startsWith('insert into news') || query.startsWith('insert or replace into news') || query.startsWith('replace into news')) {
+    const [reddit_id, title, url, upvotes, comments, posted_at, fetched_at, is_read, matched_game_id] = params;
+    fallbackData.news = fallbackData.news.filter(n => n.reddit_id !== reddit_id);
+    fallbackData.news.push({ id: Date.now() + Math.random(), reddit_id, title, url, upvotes, comments, posted_at, fetched_at, is_read: is_read || 0, matched_game_id });
+    saveFallbackDb();
+    return { changes: 1 };
+  }
+
+  if (query.startsWith('insert into player_cards')) {
+    const [game_id, milestone, playstyle, generated_at, exported_path] = params;
+    fallbackData.player_cards.push({ id: Date.now() + Math.random(), game_id, milestone, playstyle, generated_at, exported_path });
     saveFallbackDb();
     return { changes: 1 };
   }
@@ -273,13 +366,38 @@ function executeFallbackRun(sql, params = []) {
 
   if (query.startsWith('update achievements')) {
     // UPDATE achievements SET unlocked = ?, unlocked_date = ? WHERE id = ?
-    const [unlocked, unlocked_date, id] = params;
-    const ach = fallbackData.achievements.find(a => a.id === id);
-    if (ach) {
-      ach.unlocked = unlocked;
-      ach.unlocked_date = unlocked_date;
-      saveFallbackDb();
-      return { changes: 1 };
+    // OR UPDATE achievements SET unlocked = 1, unlocked_date = ? WHERE game_id = ? AND key = ?
+    if (query.includes('key =')) {
+      const [unlocked_date, game_id, key] = params;
+      const ach = fallbackData.achievements.find(a => a.game_id === game_id && a.key === key);
+      if (ach) {
+        ach.unlocked = 1;
+        ach.unlocked_date = unlocked_date;
+        saveFallbackDb();
+        return { changes: 1 };
+      }
+    } else {
+      const [unlocked, unlocked_date, id] = params;
+      const ach = fallbackData.achievements.find(a => a.id === id);
+      if (ach) {
+        ach.unlocked = unlocked;
+        ach.unlocked_date = unlocked_date;
+        saveFallbackDb();
+        return { changes: 1 };
+      }
+    }
+  }
+
+  if (query.startsWith('update news')) {
+    if (query.includes('is_read =')) {
+      const is_read = params[0];
+      const idOrRedditId = params[1];
+      const newsItem = fallbackData.news.find(n => n.reddit_id === idOrRedditId || String(n.id) === String(idOrRedditId));
+      if (newsItem) {
+        newsItem.is_read = is_read;
+        saveFallbackDb();
+        return { changes: 1 };
+      }
     }
   }
 
@@ -350,14 +468,17 @@ function executeFallbackRun(sql, params = []) {
 
 // --- 3. Window Management ---
 function createMainWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1000,
+    width: width,
+    height: height,
+    minWidth: 1024,
     minHeight: 700,
     frame: false, // frameless for custom cyberpunk titlebar
     icon: path.join(__dirname, '../icon.png'),
-    backgroundColor: '#08090c',
+    backgroundColor: '#161412', // Match warm/dark sidebar theme to prevent white flash
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -365,6 +486,8 @@ function createMainWindow() {
       nodeIntegration: false
     }
   });
+
+  mainWindow.maximize();
 
   // Load Vite dev server in development, built files in production
   const startUrl = app.isPackaged
@@ -495,6 +618,16 @@ function updateTrayStatus(gameName = null) {
 
 // --- 5. Application Lifecycle & Security ---
 app.whenReady().then(() => {
+  // Register file protocol to allow loading local cached cover art
+  protocol.registerFileProtocol('media', (request, callback) => {
+    const url = request.url.replace('media://', '');
+    try {
+      return callback(decodeURIComponent(url));
+    } catch (error) {
+      console.error("Protocol error:", error);
+    }
+  });
+
   initDatabase();
   createMainWindow();
   createTray();
@@ -713,6 +846,19 @@ ipcMain.handle('game:kill', async (event, gameId) => {
   return { success: false, error: 'No active monitoring session for this game.' };
 });
 
+// Steam Store API Search Fallback (to avoid CORS in renderer)
+ipcMain.handle('system:steam-search', async (event, term) => {
+  try {
+    const url = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=en&cc=US`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error("Steam search error:", error);
+    return null;
+  }
+});
+
 // Browse EXE file
 ipcMain.handle('system:select-exe', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -751,6 +897,92 @@ ipcMain.handle('system:export-png', async (event, dataUrl) => {
   } catch (err) {
     console.error("Failed to write PNG file:", err);
     return { success: false, error: err.message };
+  }
+});
+
+// Helper to download an image from a URL, automatically following redirects
+function downloadImage(url, destPath, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirectCount > 5) {
+      reject(new Error('Too many redirects'));
+      return;
+    }
+
+    const dir = path.dirname(destPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const client = url.startsWith('https') ? https : http;
+    const request = client.get(url, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        resolve(downloadImage(response.headers.location, destPath, redirectCount + 1));
+        return;
+      }
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download image (status: ${response.statusCode})`));
+        return;
+      }
+
+      const file = fs.createWriteStream(destPath);
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        resolve(destPath);
+      });
+    });
+
+    request.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+// Caching game cover art fetched from API
+ipcMain.handle('game:cache-image', async (event, gameId, url) => {
+  try {
+    if (!url || !url.startsWith('http')) {
+      return null;
+    }
+
+    // Determine extension
+    let ext = '.jpg';
+    try {
+      const parsedUrl = new URL(url);
+      const pathname = parsedUrl.pathname;
+      const lastDot = pathname.lastIndexOf('.');
+      if (lastDot !== -1) {
+        const urlExt = pathname.substring(lastDot).toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(urlExt)) {
+          ext = urlExt;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not parse image URL extension, defaulting to .jpg", e);
+    }
+
+    const coversDir = path.join(app.getPath('userData'), 'covers');
+    const destPath = path.join(coversDir, `${gameId}${ext}`);
+
+    await downloadImage(url, destPath);
+
+    const normalizedPath = destPath.replace(/\\/g, '/');
+    const localUrl = `media://${normalizedPath}`;
+
+    // Update database
+    const updateSql = "UPDATE games SET cover_art = ? WHERE id = ?";
+    if (isDbFallback) {
+      executeFallbackRun(updateSql, [localUrl, gameId]);
+    } else {
+      db.prepare(updateSql).run(localUrl, gameId);
+    }
+
+    console.log(`Successfully cached game image for ${gameId} to ${localUrl}`);
+    return localUrl;
+  } catch (error) {
+    console.error(`Failed to cache image for game ${gameId}:`, error);
+    return null;
   }
 });
 

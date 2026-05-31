@@ -119,19 +119,28 @@ export default function Dashboard() {
     }
     const grid = [];
     const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0 (Sun) to 6 (Sat)
+    
+    // Align start to the Sunday of 11 weeks ago
     const startDate = new Date(today);
-    startDate.setDate(today.getDate() - (12 * 7) + (7 - today.getDay() - 1));
+    startDate.setDate(today.getDate() - (11 * 7) - currentDayOfWeek);
+    
     for (let w = 0; w < 12; w++) {
       const week = [];
       for (let d = 0; d < 7; d++) {
         const currentDate = new Date(startDate);
         currentDate.setDate(startDate.getDate() + (w * 7) + d);
         const dateStr = currentDate.toISOString().split('T')[0];
-        const seconds = dailyPlaytime[dateStr] || 0;
+        
+        // Don't log sessions in the future
+        const isFuture = currentDate > today;
+        const seconds = isFuture ? 0 : (dailyPlaytime[dateStr] || 0);
         const hours = seconds / 3600;
+        
         week.push({
           date: dateStr,
           hours,
+          isFuture,
           dayLabel: currentDate.toLocaleDateString(undefined, { weekday: 'short' }),
           formattedDate: currentDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
         });
@@ -140,6 +149,22 @@ export default function Dashboard() {
     }
     return grid;
   }, [sessions, activeGameId, activeSessionSeconds]);
+
+  const monthLabels = useMemo(() => {
+    const labels = []; // { index: w, text: 'Jan' }
+    let lastMonth = '';
+    
+    heatmapData.forEach((week, wIndex) => {
+      const firstDayDate = new Date(week[0].date);
+      const monthName = firstDayDate.toLocaleDateString(undefined, { month: 'short' });
+      if (monthName !== lastMonth) {
+        labels.push({ index: wIndex, text: monthName });
+        lastMonth = monthName;
+      }
+    });
+    
+    return labels;
+  }, [heatmapData]);
 
   // --- Helpers ---
   const formatTime = (totalSeconds) => {
@@ -337,19 +362,46 @@ export default function Dashboard() {
             <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>Last 12 Weeks</span>
           </div>
 
-          <div className="flex flex-col items-center p-3 rounded-lg" style={{ background: 'var(--bg-base)' }}>
-            <div className="flex gap-[3px]">
-              {heatmapData.map((week, wIndex) => (
-                <div key={wIndex} className="flex flex-col gap-[3px]">
-                  {week.map((day, dIndex) => (
-                    <div
-                      key={dIndex}
-                      className={`vt-heatmap-cell vt-tooltip ${getHeatmapClass(day.hours)}`}
-                      data-tip={`${day.formattedDate}: ${day.hours.toFixed(1)} hrs`}
-                    />
-                  ))}
-                </div>
-              ))}
+          <div className="flex flex-col p-4 rounded-lg items-center" style={{ background: 'var(--bg-base)' }}>
+            {/* Months Header Row */}
+            <div className="flex gap-[3px] mb-1 select-none text-[9px]" style={{ color: 'var(--text-tertiary)', marginLeft: '25px', width: 'fit-content' }}>
+              {heatmapData.map((week, wIndex) => {
+                const label = monthLabels.find(l => l.index === wIndex);
+                return (
+                  <div key={wIndex} className="w-[11px] text-left overflow-visible whitespace-nowrap">
+                    {label ? label.text : ''}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Grid Container with Day Labels Column */}
+            <div className="flex items-center gap-1.5">
+              {/* Day Labels Column */}
+              <div className="flex flex-col justify-between text-[9px] select-none text-right pr-0.5" style={{ color: 'var(--text-tertiary)', height: '95px' }}>
+                <span style={{ visibility: 'hidden' }}>Sun</span>
+                <span>Mon</span>
+                <span style={{ visibility: 'hidden' }}>Tue</span>
+                <span>Wed</span>
+                <span style={{ visibility: 'hidden' }}>Thu</span>
+                <span>Fri</span>
+                <span style={{ visibility: 'hidden' }}>Sat</span>
+              </div>
+
+              {/* Heatmap Grid */}
+              <div className="flex gap-[3px]">
+                {heatmapData.map((week, wIndex) => (
+                  <div key={wIndex} className="flex flex-col gap-[3px]">
+                    {week.map((day, dIndex) => (
+                      <div
+                        key={dIndex}
+                        className={`vt-heatmap-cell vt-tooltip ${day.isFuture ? 'vt-heatmap-empty opacity-40' : getHeatmapClass(day.hours)}`}
+                        data-tip={day.isFuture ? 'Future' : `${day.formattedDate}: ${day.hours.toFixed(1)} hrs`}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
             
             {/* Legend */}

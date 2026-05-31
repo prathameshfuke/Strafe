@@ -140,6 +140,21 @@ export const useGameStore = create((set, get) => ({
           settings,
           loading: false
         });
+
+        // Trigger background image caching for any remote covers
+        if (games && games.length > 0) {
+          games.forEach(g => {
+            if (g.cover_art && g.cover_art.startsWith('http')) {
+              window.electron.system.cacheImage(g.id, g.cover_art).then((localUrl) => {
+                if (localUrl) {
+                  set(state => ({
+                    games: state.games.map(x => x.id === g.id ? { ...x, cover_art: localUrl } : x)
+                  }));
+                }
+              }).catch(err => console.error(`Failed to cache image for ${g.name} at startup:`, err));
+            }
+          });
+        }
       } catch (err) {
         console.error("Database sync failed, keeping local memory", err);
         set({ loading: false });
@@ -200,6 +215,17 @@ export const useGameStore = create((set, get) => ({
     set(state => ({
       games: [...state.games, newGame]
     }));
+
+    // Trigger background image caching if remote cover
+    if (hasElectron && newGame.cover_art && newGame.cover_art.startsWith('http')) {
+      window.electron.system.cacheImage(newGame.id, newGame.cover_art).then((localUrl) => {
+        if (localUrl) {
+          set(state => ({
+            games: state.games.map(x => x.id === newGame.id ? { ...x, cover_art: localUrl } : x)
+          }));
+        }
+      }).catch(err => console.error(`Failed to cache image for added game ${newGame.name}:`, err));
+    }
 
     // Setup initial achievements manually or generate 3 default ones for the game
     const defaultAchs = [
