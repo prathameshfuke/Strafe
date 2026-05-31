@@ -26,6 +26,7 @@
     "concurrently": "^8.2.2",
     "electron": "^28.2.0",
     "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2",
     "tailwindcss": "^4.0.0",
     "vite": "^5.1.6",
     "wait-on": "^7.2.0"
@@ -40,13 +41,14 @@
       "dist/**/*",
       "electron/**/*",
       "icon.png",
+      "icon.ico",
       "package.json"
     ],
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "icon.png"
+      "icon": "icon.ico"
     },
     "nsis": {
       "oneClick": false,
