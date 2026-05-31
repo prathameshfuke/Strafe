@@ -1,14 +1,29 @@
 <p align="center">
-  <img src="./logo.png" alt="VaultTrack Banner" width="100%" style="border-radius: 12px;" />
+  <img src="./logo.png" alt="STRAFE Banner" width="100%" style="border-radius: 12px;" />
 </p>
 
-# VaultTrack
+<p align="center">
+  <img src="./icon.png" alt="STRAFE App Icon" width="120" style="border-radius: 24px; margin-top: 16px;" />
+</p>
 
-VaultTrack (STRAFE) is a premium, beautifully crafted local game library manager and session tracking application designed for PC players. Inspired by the visual aesthetics of **Raycast, Arc Browser, and high-end audio apps like Doppler**, it combines dense information layouts with warm, tactile color schemes (terracotta, off-white, and charcoal) to offer a dashboard you actually want to keep open on your desktop.
+<p align="center">
+  <strong>STRAFE — Game Library & Session Tracker</strong><br/>
+  <sub>Built with Electron · React · SQLite</sub>
+</p>
 
-🔗 **GitHub Repository**: [prathameshfuke/Strafe](https://github.com/prathameshfuke/Strafe)
+<p align="center">
+  <a href="https://github.com/prathameshfuke/Strafe/releases/latest">
+    <img src="https://img.shields.io/github/v/release/prathameshfuke/Strafe?style=flat-square&label=Download&color=e07b54" alt="Latest Release" />
+  </a>
+  <a href="https://github.com/prathameshfuke/Strafe/releases/latest">
+    <img src="https://img.shields.io/github/downloads/prathameshfuke/Strafe/total?style=flat-square&color=6c63ff" alt="Downloads" />
+  </a>
+  <img src="https://img.shields.io/badge/platform-Windows-blue?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
+</p>
 
 ---
+
 
 ## Core Design Philosophy
 
