@@ -269,9 +269,9 @@ function initFallbackDb() {
   fallbackData.player_cards = fallbackData.player_cards || [];
   fallbackData.profile = fallbackData.profile || {
     id: 'user_profile',
-    username: 'Viper_Gamer',
+    username: '',
     avatar_path: null,
-    bio: 'Hacking the mainframe...',
+    bio: '',
     status_text: 'Online',
     status_type: 'Online',
     age: 0,

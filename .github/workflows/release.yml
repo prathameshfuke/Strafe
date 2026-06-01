@@ -114,9 +114,6 @@ jobs:
         with:
           generate_release_notes: true
           name: "STRAFE v${{ github.ref_name }}"
-          files: |
-            release/*.exe
-            release/*.yml
-            release/*.blockmap
+          files: release/STRAFE-Setup-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

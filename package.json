@@ -53,13 +53,10 @@
         {
           "target": "nsis",
           "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
         }
       ],
       "icon": "icon.ico",
+      "artifactName": "STRAFE-Setup-${version}.exe",
       "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
@@ -71,9 +68,6 @@
       "uninstallerIcon": "icon.ico",
       "installerHeaderIcon": "icon.ico",
       "shortcutName": "STRAFE"
-    },
-    "portable": {
-      "artifactName": "STRAFE-Portable-${version}.exe"
     }
   }
 }
