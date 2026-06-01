@@ -52,26 +52,16 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": ["x64"]
         }
       ],
       "icon": "icon.ico",
-      "artifactName": "STRAFE-Setup-${version}.exe",
-      "requestedExecutionLevel": "asInvoker",
-      "verifyUpdateCodeSignature": false
+      "artifactName": "STRAFE.exe",
+      "requestedExecutionLevel": "asInvoker"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "installerIcon": "icon.ico",
-      "uninstallerIcon": "icon.ico",
-      "installerHeaderIcon": "icon.ico",
-      "shortcutName": "STRAFE",
-      "license": null,
-      "installerSidebar": null
+    "portable": {
+      "artifactName": "STRAFE.exe"
     }
   }
 }

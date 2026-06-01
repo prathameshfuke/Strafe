@@ -26,37 +26,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Convert icon.png to proper icon.ico (Windows multi-size)
+      - name: Convert icon.png to proper multi-size icon.ico
         shell: pwsh
         run: |
-          # Install ImageMagick if not present, otherwise use PowerShell to create a valid ICO
-          # We'll use the System.Drawing to convert PNG to ICO properly
           Add-Type -AssemblyName System.Drawing
-
           $png = [System.Drawing.Image]::FromFile("$PWD\icon.png")
-
-          # Create a proper ICO with multiple sizes (16, 32, 48, 256)
           $sizes = @(16, 32, 48, 256)
           $ms = New-Object System.IO.MemoryStream
-
           $bw = New-Object System.IO.BinaryWriter($ms)
-
-          # ICO header
-          $bw.Write([UInt16]0)       # Reserved
-          $bw.Write([UInt16]1)       # Type: 1 = ICO
-          $bw.Write([UInt16]$sizes.Count)  # Number of images
-
-          # Calculate data offset (header = 6 bytes, each entry = 16 bytes)
+          $bw.Write([UInt16]0)
+          $bw.Write([UInt16]1)
+          $bw.Write([UInt16]$sizes.Count)
           $dataOffset = 6 + ($sizes.Count * 16)
           $imageDataList = @()
-
           foreach ($size in $sizes) {
             $bmp = New-Object System.Drawing.Bitmap($size, $size)
             $g = [System.Drawing.Graphics]::FromImage($bmp)
             $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
             $g.DrawImage($png, 0, 0, $size, $size)
             $g.Dispose()
-
             $imgMs = New-Object System.IO.MemoryStream
             $bmp.Save($imgMs, [System.Drawing.Imaging.ImageFormat]::Png)
             $bmp.Dispose()
@@ -64,56 +52,60 @@ jobs:
             $imgMs.Dispose()
             $imageDataList += ,$imgData
           }
-
-          # Write directory entries
           $offset = $dataOffset
           for ($i = 0; $i -lt $sizes.Count; $i++) {
-            $size = $sizes[$i]
-            $data = $imageDataList[$i]
+            $size = $sizes[$i]; $data = $imageDataList[$i]
             $w = if ($size -eq 256) { 0 } else { $size }
             $h = if ($size -eq 256) { 0 } else { $size }
-            $bw.Write([byte]$w)          # Width (0 = 256)
-            $bw.Write([byte]$h)          # Height (0 = 256)
-            $bw.Write([byte]0)           # Color count
-            $bw.Write([byte]0)           # Reserved
-            $bw.Write([UInt16]1)         # Planes
-            $bw.Write([UInt16]32)        # Bit count
-            $bw.Write([UInt32]$data.Length)  # Data size
-            $bw.Write([UInt32]$offset)   # Data offset
+            $bw.Write([byte]$w); $bw.Write([byte]$h)
+            $bw.Write([byte]0); $bw.Write([byte]0)
+            $bw.Write([UInt16]1); $bw.Write([UInt16]32)
+            $bw.Write([UInt32]$data.Length); $bw.Write([UInt32]$offset)
             $offset += $data.Length
           }
-
-          # Write image data
-          foreach ($data in $imageDataList) {
-            $bw.Write($data)
-          }
-
+          foreach ($data in $imageDataList) { $bw.Write($data) }
           $bw.Flush()
           $icoBytes = $ms.ToArray()
-          $bw.Dispose()
-          $ms.Dispose()
-          $png.Dispose()
-
+          $bw.Dispose(); $ms.Dispose(); $png.Dispose()
           [System.IO.File]::WriteAllBytes("$PWD\icon.ico", $icoBytes)
-          Write-Host "icon.ico created successfully ($($icoBytes.Length) bytes)"
+          Write-Host "icon.ico created: $($icoBytes.Length) bytes"
 
       - name: Build Vite renderer
         run: npx vite build
 
-      - name: Build Windows installer + portable exe (electron-builder)
-        run: npx electron-builder --win --publish never
+      - name: Build portable STRAFE.exe
+        run: npx electron-builder --win portable --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List release artifacts
+      - name: Confirm output
         shell: pwsh
-        run: Get-ChildItem release/ | Where-Object { $_.Extension -match '\.(exe|yml|blockmap)$' } | Select-Object Name, Length
+        run: Get-ChildItem release/ | Select-Object Name, Length
 
-      - name: Upload to GitHub Release
+      - name: Delete existing release (if any) to start fresh
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $headers = @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}"; Accept = "application/vnd.github+json" }
+          $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases" -Headers $headers
+          $existing = $releases | Where-Object { $_.tag_name -eq $tag }
+          if ($existing) {
+            Write-Host "Deleting existing release id=$($existing.id)"
+            Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/${{ github.repository }}/releases/$($existing.id)" -Headers $headers
+          } else {
+            Write-Host "No existing release for $tag"
+          }
+
+      - name: Upload STRAFE.exe to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
           name: "STRAFE v${{ github.ref_name }}"
-          files: release/STRAFE-Setup-*.exe
+          body: |
+            ## STRAFE Game Library & Session Tracker
+
+            **Download STRAFE.exe** — no installation needed. Just double-click and run.
+
+            > **Windows SmartScreen:** If Windows shows a warning, click **More info → Run anyway**. The app is open source and safe.
+          files: release/STRAFE.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
