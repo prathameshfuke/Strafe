@@ -90,9 +90,9 @@ const MOCK_COLLECTION_GAMES = [
 
 const MOCK_PROFILE = {
   id: 'user_profile',
-  username: 'Viper_Gamer',
+  username: '',
   avatar_path: '',
-  bio: 'Hacking the matrix. Building VaultTrack. Collecting pixel trophies.',
+  bio: '',
   status_text: 'Online',
   status_type: 'Online',
   age: 0,

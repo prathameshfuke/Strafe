@@ -64,7 +64,7 @@ export default function Login() {
     >
       {/* 16:9 Logo Banner */}
       <div className="w-full aspect-[16/9] rounded-xl overflow-hidden shrink-0 relative" style={{ border: '1px solid var(--border)' }}>
-        <img src={logoImg} alt="VaultTrack Banner" className="w-full h-full object-cover" />
+        <img src={logoImg} alt="STRAFE Banner" className="w-full h-full object-cover" />
         <span 
           className="absolute bottom-2 right-2 p-1.5 rounded-full flex items-center justify-center shadow-md animate-pulse"
           style={{ background: 'var(--accent)', color: '#fefefe' }}
@@ -82,7 +82,7 @@ export default function Login() {
             color: 'var(--text-primary)' 
           }}
         >
-          Welcome to VaultTrack
+          Welcome to STRAFE
         </h2>
         <p className="text-[13px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
           Initialize your local player profile. All stats and game libraries remain completely stored on your machine.

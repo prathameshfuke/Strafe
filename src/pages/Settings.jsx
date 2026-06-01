@@ -42,7 +42,7 @@ export default function Settings() {
     if (hasElectron) window.electron.system.exportPng(dataStr);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a'); link.href = url; link.download = `vaulttrack-backup-${new Date().toISOString().split('T')[0]}.json`; link.click();
+    const link = document.createElement('a'); link.href = url; link.download = `strafe-backup-${new Date().toISOString().split('T')[0]}.json`; link.click();
     URL.revokeObjectURL(url);
   };
 
@@ -93,7 +93,7 @@ export default function Settings() {
     <div className="flex flex-col gap-8 select-none max-w-3xl">
       <div>
         <h1 className="vt-page-title">Settings</h1>
-        <p className="text-[15px] mt-1" style={{ color: 'var(--text-secondary)' }}>Configure VaultTrack preferences and data management.</p>
+        <p className="text-[15px] mt-1" style={{ color: 'var(--text-secondary)' }}>Configure STRAFE preferences and data management.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -160,7 +160,7 @@ export default function Settings() {
           <div className="vt-card p-5 flex flex-col gap-4">
             <h3 className="vt-section-header text-[11px]">About</h3>
             <div className="flex flex-col gap-1 text-[13px]">
-              <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>VaultTrack v1.0.0</p>
+              <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>STRAFE v1.0.0</p>
               <p style={{ color: 'var(--text-secondary)' }}>A premium offline game library manager and play tracker.</p>
             </div>
             <div style={{ height: 1, background: 'var(--border)' }} />

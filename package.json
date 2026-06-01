@@ -1,8 +1,8 @@
 {
-  "name": "vaulttrack",
+  "name": "strafe",
   "version": "1.0.0",
-  "description": "VaultTrack - Cyberpunk Game Library Manager",
-  "author": "STRAFE Team",
+  "description": "STRAFE — Game Library & Session Tracker",
+  "author": "Prathamesh Fuke",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
@@ -35,7 +35,7 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.strafe.vaulttrack",
+    "appId": "com.strafe.app",
     "productName": "STRAFE",
     "copyright": "Copyright © 2024 Prathamesh Fuke",
     "directories": {

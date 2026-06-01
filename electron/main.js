@@ -9,7 +9,7 @@ const http = require('http');
 if (process.platform === 'win32') {
   const iconPath = path.join(__dirname, '../icon.ico');
   if (fs.existsSync(iconPath)) {
-    app.setAppUserModelId('com.strafe.vaulttrack');
+    app.setAppUserModelId('com.strafe.app');
   }
 }
 
@@ -72,8 +72,8 @@ const dbHelper = {
 // --- 1. Database Initialization ---
 function initDatabase() {
   const dbDir = app.getPath('userData');
-  const dbPath = path.join(dbDir, 'vaulttrack.db');
-  fallbackDbPath = path.join(dbDir, 'vaulttrack_fallback.json');
+  const dbPath = path.join(dbDir, 'strafe.db');
+  fallbackDbPath = path.join(dbDir, 'strafe_fallback.json');
 
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
@@ -662,7 +662,7 @@ function createTray() {
   }
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'VaultTrack', enabled: false },
+    { label: 'STRAFE', enabled: false },
     { type: 'separator' },
     { 
       label: 'Open Dashboard', 
@@ -680,14 +680,14 @@ function createTray() {
       id: 'currently-playing'
     },
     { type: 'separator' },
-    { label: 'Exit VaultTrack', click: () => {
+    { label: 'Exit STRAFE', click: () => {
         app.isQuitting = true;
         app.quit();
       } 
     }
   ]);
 
-  tray.setToolTip('VaultTrack Game Library Tracker');
+  tray.setToolTip('STRAFE Game Library Tracker');
   tray.setContextMenu(contextMenu);
 
   tray.on('click', () => {
@@ -721,11 +721,11 @@ function updateTrayStatus(gameName = null) {
       currentlyPlayingItem.label = `Playing: ${gameName}`;
       currentlyPlayingItem.visible = true;
       // Change tray tooltip
-      tray.setToolTip(`VaultTrack - Playing ${gameName}`);
+      tray.setToolTip(`STRAFE - Playing ${gameName}`);
     } else {
       currentlyPlayingItem.label = 'Currently Playing';
       currentlyPlayingItem.visible = false;
-      tray.setToolTip('VaultTrack Game Library Tracker');
+      tray.setToolTip('STRAFE Game Library Tracker');
     }
   }
 }
@@ -1019,7 +1019,7 @@ ipcMain.handle('system:select-exe', async () => {
 ipcMain.handle('system:export-png', async (event, dataUrl) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'Export Profile Card',
-    defaultPath: path.join(app.getPath('downloads'), 'vaulttrack-profile.png'),
+    defaultPath: path.join(app.getPath('downloads'), 'strafe-profile.png'),
     filters: [
       { name: 'PNG Images', extensions: ['png'] }
     ]

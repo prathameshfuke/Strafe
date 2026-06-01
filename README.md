@@ -42,7 +42,7 @@
 
 ## System Architecture
 
-VaultTrack uses a modern multi-process architecture utilizing Electron, React, and local persistence.
+STRAFE uses a modern multi-process architecture utilizing Electron, React, and local persistence.
 
 ```mermaid
 flowchart TB
@@ -92,7 +92,7 @@ graph TD
 ```
 
 ### 3. Auto-Playtime Process Monitor
-Launching a game from VaultTrack spawns a detached child process, hides the main window, opens a compact overlay widget, and begins process tracking.
+Launching a game from STRAFE spawns a detached child process, hides the main window, opens a compact overlay widget, and begins process tracking.
 
 ```mermaid
 sequenceDiagram
@@ -116,7 +116,7 @@ sequenceDiagram
 ```
 
 ### 4. Goldberg achievements Integration
-If you are running games using the Goldberg Steam Emulator, VaultTrack watches for achievement file changes inside your local AppData directory (`%APPDATA%/Goldberg SteamEmu Saves/`). It diffs achievements in real-time, displays desktop notifications upon unlock, and records them in your profile.
+If you are running games using the Goldberg Steam Emulator, STRAFE watches for achievement file changes inside your local AppData directory (`%APPDATA%/Goldberg SteamEmu Saves/`). It diffs achievements in real-time, displays desktop notifications upon unlock, and records them in your profile.
 
 ### 5. The Scene (Reddit Crackwatch Feed)
 An RSS parser displays the latest news and crack status from community feeds. The feed automatically cross-references entries with games in your local library and highlights matches with an "In Library" accent badge.
@@ -125,7 +125,7 @@ An RSS parser displays the latest news and crack status from community feeds. Th
 
 ## Configuration and Setup
 
-To get the most out of VaultTrack, you can configure your preferences in the Settings page:
+To get the most out of STRAFE, you can configure your preferences in the Settings page:
 - **RAWG API Key**: Get a free key from RAWG.io to download real game metadata, descriptions, genres, and artwork automatically.
 - **Default Directory Scanner**: Specify a default games directory (e.g. `C:\Games`). You can scan folders recursively for executables, automatically index them, and match metadata in bulk.
 - **App Styling Themes**: Toggle between a warm light mode (natural off-white and terracotta) and dark mode (material charcoal and copper).
@@ -134,7 +134,7 @@ To get the most out of VaultTrack, you can configure your preferences in the Set
 
 ## Database Schema
 
-VaultTrack structures your local data across several tables:
+STRAFE structures your local data across several tables:
 
 ### 1. profile Table
 Stores user identity and onboarding status.
@@ -248,7 +248,7 @@ npm run package:win
 ## Troubleshooting and Fallbacks
 
 ### SQLite Driver Compilation Fallback
-If the native `better-sqlite3` module fails to load (common in environments lacking Python/C++ compiler tools), VaultTrack automatically falls back to an asynchronous local JSON database (`vaulttrack_fallback.json`) in the user data directory. This ensures the app is fully functional and portable across machines without requiring native compiling steps.
+If the native `better-sqlite3` module fails to load (common in environments lacking Python/C++ compiler tools), STRAFE automatically falls back to an asynchronous local JSON database (`STRAFE_fallback.json`) in the user data directory. This ensures the app is fully functional and portable across machines without requiring native compiling steps.
 
 ### Windows Symlink Extraction Error
 On Windows, `electron-builder` requires Developer Mode or Administrator privileges to extract macOS symbolic links inside compiler packages. If you encounter a `Cannot create symbolic link` error, run your terminal/prompt as **Administrator** or enable **Developer Mode** under Windows Settings (Privacy & security > For developers). Alternatively, use the ZIP-folder packaging command:

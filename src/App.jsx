@@ -83,7 +83,7 @@ const Titlebar = () => {
             color: 'var(--text-primary)' 
           }}
         >
-          VaultTrack
+          STRAFE
         </span>
         {activeGame && (
           <span className="vt-badge vt-badge-ingame ml-3 text-[11px] flex items-center gap-1.5 py-0.5">
@@ -392,9 +392,9 @@ const AppRoutes = () => {
   if (loading) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 select-none" style={{ backgroundColor: 'var(--bg-base)' }}>
-        <img src={iconImg} alt="VaultTrack Logo" className="w-16 h-16 object-contain animate-pulse rounded-xl" style={{ border: '1px solid var(--border)' }} />
+        <img src={iconImg} alt="STRAFE Logo" className="w-16 h-16 object-contain animate-pulse rounded-xl" style={{ border: '1px solid var(--border)' }} />
         <div className="flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-          <span className="text-sm font-medium tracking-wide" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>VaultTrack</span>
+          <span className="text-sm font-medium tracking-wide" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>STRAFE</span>
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-ping" />
         </div>
       </div>

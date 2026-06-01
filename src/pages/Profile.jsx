@@ -80,7 +80,7 @@ export default function Profile() {
           const res = await window.electron.system.exportPng(dataUrl);
           if (res.success) window.electron.system.showNotification('Profile Card Exported!', `Saved to: ${res.filePath.split('\\').pop()}`);
         } else {
-          const link = document.createElement('a'); link.download = 'vaulttrack-profile-card.png'; link.href = dataUrl; link.click();
+          const link = document.createElement('a'); link.download = 'strafe-profile-card.png'; link.href = dataUrl; link.click();
         }
       } catch (err) { console.error("Export failed", err); }
       finally { setExporting(false); }
@@ -179,7 +179,7 @@ export default function Profile() {
                   <div>
                     <h3 className="text-lg" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{profile.username}</h3>
                     <p className="vt-mono text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                      VaultTrack Member {profile.age ? `• ${profile.age} yrs` : ''}
+                      STRAFE Member {profile.age ? `• ${profile.age} yrs` : ''}
                     </p>
                   </div>
                 </div>
@@ -222,7 +222,7 @@ export default function Profile() {
             <div className="relative flex flex-col gap-4 z-10">
               <div className="flex justify-between items-center pb-2" style={{ borderBottom: '1px solid rgba(224,125,69,0.2)' }}>
                 <span className="text-[11px] tracking-widest uppercase" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', color: '#e07d45' }}>Profile Card</span>
-                <span className="vt-mono text-[10px]" style={{ color: '#4a4540' }}>VaultTrack</span>
+                <span className="vt-mono text-[10px]" style={{ color: '#4a4540' }}>STRAFE</span>
               </div>
               <div className="flex items-center gap-4 mt-2">
                 <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-lg" style={{ background: '#2d2925', border: '2px solid #e07d45', color: '#e07d45', fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
@@ -281,7 +281,7 @@ export default function Profile() {
 
             {/* Footer */}
             <div className="z-10 flex items-center justify-between pt-3 mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-              <span className="text-[10px] uppercase tracking-widest" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', color: '#4a4540' }}>VaultTrack v1.0</span>
+              <span className="text-[10px] uppercase tracking-widest" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', color: '#4a4540' }}>STRAFE v1.0</span>
               <div className="flex gap-0.5">
                 <span className="w-2 h-1 rounded-full" style={{ background: '#e07d45' }} />
                 <span className="w-2 h-1 rounded-full" style={{ background: '#9b87c2' }} />
