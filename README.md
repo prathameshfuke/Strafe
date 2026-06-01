@@ -24,8 +24,15 @@
 
 ---
 
+> [!NOTE]
+> **Windows SmartScreen Notice** — When you first run the installer, Windows may show a blue "Windows protected your PC" warning. This is normal for new apps that don't yet have a code-signing certificate. To proceed:
+> 1. Click **"More info"**
+> 2. Click **"Run anyway"**
+>
+> The app is open source — you can review every line of code in this repository.
 
 ## Core Design Philosophy
+
 
 - **Warm and Tactical Aesthetic**: Clean layouts using dynamic off-whites, terracotta accents, and soft secondary amethysts. Surfaces feel like brushed metal or warm paper rather than dark neon or generic blue corporate tools.
 - **Content-First Layout**: Beautiful grid and list views showing game covers, rating scales, status badges, and precise playtimes.

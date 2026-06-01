@@ -37,6 +37,7 @@
   "build": {
     "appId": "com.strafe.vaulttrack",
     "productName": "STRAFE",
+    "copyright": "Copyright © 2024 Prathamesh Fuke",
     "directories": {
       "output": "release",
       "buildResources": "."
@@ -57,7 +58,8 @@
       ],
       "icon": "icon.ico",
       "artifactName": "STRAFE-Setup-${version}.exe",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
@@ -67,7 +69,9 @@
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico",
       "installerHeaderIcon": "icon.ico",
-      "shortcutName": "STRAFE"
+      "shortcutName": "STRAFE",
+      "license": null,
+      "installerSidebar": null
     }
   }
 }
